@@ -1,0 +1,21 @@
+# Secrets
+secrets.h
+ESP32-cam/**/config.h
+
+# Arduino build output
+build/
+compile/
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.example.tfvars
+crash.log
+
+# Python
+__pycache__/
+.venv/
+.pytest_cache/
+*.pyc
