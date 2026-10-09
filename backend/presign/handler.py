@@ -36,3 +36,9 @@ def parse_request(event: dict) -> tuple[str, str]:
     if not isinstance(trigger, str) or trigger not in TRIGGERS:
         raise ValidationError("trigger must be one of: button, ir, serial")
     return device_id, trigger
+
+
+def authorize(event: dict, device_id: str, device_keys: dict[str, str]) -> bool:
+    identity = (event.get("requestContext") or {}).get("identity") or {}
+    key_id = identity.get("apiKeyId")
+    return key_id is not None and device_keys.get(key_id) == device_id
