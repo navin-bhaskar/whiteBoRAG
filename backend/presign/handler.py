@@ -6,6 +6,9 @@ import json
 import re
 from datetime import datetime, timezone
 
+import boto3
+from botocore.config import Config
+
 DEVICE_ID_RE = re.compile(r"[a-z0-9-]{1,32}")
 TRIGGERS = frozenset({"button", "ir", "serial"})
 
@@ -53,3 +56,32 @@ def build_key(prefix: str, device_id: str, now: datetime, capture_id: str) -> st
         f"{prefix}{device_id}/{now:%Y/%m/%d}/"
         f"{now:%Y%m%dT%H%M%SZ}_{capture_id}.jpg"
     )
+
+
+def make_s3_client(region: str):
+    return boto3.client(
+        "s3",
+        region_name=region,
+        config=Config(signature_version="s3v4", s3={"addressing_style": "virtual"}),
+    )
+
+
+def presign(
+    s3, bucket: str, key: str, device_id: str, trigger: str, ttl: int
+) -> tuple[str, dict[str, str]]:
+    url = s3.generate_presigned_url(
+        "put_object",
+        Params={
+            "Bucket": bucket,
+            "Key": key,
+            "ContentType": "image/jpeg",
+            "Metadata": {"device-id": device_id, "trigger": trigger},
+        },
+        ExpiresIn=ttl,
+    )
+    headers = {
+        "Content-Type": "image/jpeg",
+        "x-amz-meta-device-id": device_id,
+        "x-amz-meta-trigger": trigger,
+    }
+    return url, headers
