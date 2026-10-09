@@ -4,6 +4,7 @@ import base64
 import binascii
 import json
 import re
+from datetime import datetime, timezone
 
 DEVICE_ID_RE = re.compile(r"[a-z0-9-]{1,32}")
 TRIGGERS = frozenset({"button", "ir", "serial"})
@@ -42,3 +43,13 @@ def authorize(event: dict, device_id: str, device_keys: dict[str, str]) -> bool:
     identity = (event.get("requestContext") or {}).get("identity") or {}
     key_id = identity.get("apiKeyId")
     return key_id is not None and device_keys.get(key_id) == device_id
+
+
+def build_key(prefix: str, device_id: str, now: datetime, capture_id: str) -> str:
+    if now.tzinfo is None:
+        raise ValueError("now must be timezone-aware")
+    now = now.astimezone(timezone.utc)
+    return (
+        f"{prefix}{device_id}/{now:%Y/%m/%d}/"
+        f"{now:%Y%m%dT%H%M%SZ}_{capture_id}.jpg"
+    )
