@@ -19,3 +19,7 @@ __pycache__/
 .venv/
 .pytest_cache/
 *.pyc
+
+# Planning docs (local only)
+docs/superpowers/
+.superpowers/
