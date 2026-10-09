@@ -3,11 +3,15 @@
 import base64
 import binascii
 import json
+import os
 import re
+import time
 from datetime import datetime, timezone
 
 import boto3
 from botocore.config import Config
+
+from ulid import new_ulid
 
 DEVICE_ID_RE = re.compile(r"[a-z0-9-]{1,32}")
 TRIGGERS = frozenset({"button", "ir", "serial"})
@@ -85,3 +89,52 @@ def presign(
         "x-amz-meta-trigger": trigger,
     }
     return url, headers
+
+
+_s3 = None
+
+
+def _client():
+    global _s3
+    if _s3 is None:
+        _s3 = make_s3_client(os.environ.get("AWS_REGION", "ap-south-1"))
+    return _s3
+
+
+def _response(status: int, body: dict) -> dict:
+    return {
+        "statusCode": status,
+        "headers": {"Content-Type": "application/json"},
+        "body": json.dumps(body),
+    }
+
+
+def lambda_handler(event, context):
+    try:
+        device_id, trigger = parse_request(event)
+    except ValidationError as e:
+        return _response(400, {"error": str(e)})
+
+    device_keys = json.loads(os.environ["DEVICE_KEYS"])
+    if not authorize(event, device_id, device_keys):
+        return _response(403, {"error": "API key not authorized for device"})
+
+    now_ms = time.time_ns() // 1_000_000
+    now = datetime.fromtimestamp(now_ms // 1000, tz=timezone.utc)
+    capture_id = new_ulid(now_ms)
+    key = build_key(os.environ.get("PREFIX", "captures/"), device_id, now, capture_id)
+    ttl = int(os.environ.get("URL_TTL", "300"))
+    url, headers = presign(
+        _client(), os.environ["BUCKET"], key, device_id, trigger, ttl
+    )
+
+    print(json.dumps(
+        {"capture_id": capture_id, "device_id": device_id, "trigger": trigger, "key": key}
+    ))
+    return _response(200, {
+        "capture_id": capture_id,
+        "key": key,
+        "upload_url": url,
+        "headers": headers,
+        "expires_in": ttl,
+    })
