@@ -1,0 +1,12 @@
+[project]
+name = "presign"
+version = "0.1.0"
+requires-python = "==3.13.*"
+dependencies = []
+
+[dependency-groups]
+dev = ["boto3", "pytest"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
