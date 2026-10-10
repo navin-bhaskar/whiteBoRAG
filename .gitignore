@@ -13,6 +13,7 @@ compile/
 *.tfvars
 !*.example.tfvars
 crash.log
+tfplan
 
 # Python
 __pycache__/
