@@ -74,7 +74,7 @@ resource "aws_lambda_function" "presign" {
       BUCKET      = aws_s3_bucket.captures.id
       PREFIX      = local.capture_prefix
       URL_TTL     = "300"
-      DEVICE_KEYS = "{}" # replaced with the real key map in apigw.tf (Task 5)
+      DEVICE_KEYS = jsonencode(local.device_keys)
     }
   }
 
