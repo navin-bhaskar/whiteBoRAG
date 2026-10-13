@@ -1,6 +1,6 @@
 # Secrets
 secrets.h
-ESP32-cam/**/config.h
+ESP32-cam/testing/**/config.h
 
 # Arduino build output
 build/
