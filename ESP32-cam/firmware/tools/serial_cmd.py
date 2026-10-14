@@ -24,6 +24,9 @@ def main():
     p.add_argument("command", nargs="?", default="", help="line to send; omit to only listen")
     p.add_argument("--seconds", type=float, default=10.0, help="how long to print output")
     args = p.parse_args()
+    # Boot noise decodes to U+FFFD, which a redirected Windows stdout (cp1252)
+    # cannot encode; replace it rather than crash mid-capture.
+    sys.stdout.reconfigure(errors="replace")
 
     port = serial.Serial()
     port.port = args.port

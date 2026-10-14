@@ -4,10 +4,12 @@
 
 #define DEVICE_ID "wb-cam-01"  // must be one of the devices in infra var.devices
 
-// IR proximity sensor (FC-51/TCRT5000 type): push-pull output, active LOW.
-#define IR_PIN       14
-#define IR_STABLE_MS 150   // must read LOW this long to count; rejects flicker
-#define COOLDOWN_MS  5000  // after every capture attempt, success or failure
+// IR proximity sensor (FC-51 type), active LOW. At 3.3 V its output chatters
+// at idle (LOW runs of 5-10 ms); a hand holds it LOW continuously.
+#define IR_PIN            14
+#define IR_MIN_LOW_MS     20    // continuous LOW this long = a hand (idle chatter never is)
+#define IR_REARM_MS       200   // hand must be gone this long before the next wave counts
+#define COOLDOWN_MS       5000  // after every capture attempt, success or failure
 
 // Flash LED (GPIO 4): full brightness for captures, dimmed for feedback.
 #define FLASH_LED_PIN       4
