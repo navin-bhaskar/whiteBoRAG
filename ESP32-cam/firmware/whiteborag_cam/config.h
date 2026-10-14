@@ -19,6 +19,10 @@
 #define LED_USE_PWM         1    // 0 = full-brightness on/off blinks (PWM fallback)
 #define LED_DIM_DUTY        12   // feedback brightness, out of 256
 
+// Live view for aiming the camera (always on, no flash, no auth)
+#define LIVEVIEW_HOSTNAME "whiteborag-cam"  // http://whiteborag-cam.local/
+#define STREAM_FRAMESIZE  FRAMESIZE_SVGA    // 800x600: same 4:3 framing as UXGA captures
+
 // Network
 #define WIFI_CONNECT_TIMEOUT_MS 15000
 #define WIFI_RESTART_AFTER_MS   (5UL * 60 * 1000)

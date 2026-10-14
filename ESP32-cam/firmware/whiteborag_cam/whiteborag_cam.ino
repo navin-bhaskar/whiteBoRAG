@@ -1,6 +1,7 @@
 // WhiteBorag capture firmware (spec §4: docs/superpowers/specs/2026-10-08-capture-ingest-design.md).
 // One IR hand wave, or "snap" over serial, gets a presigned URL, captures
 // a UXGA JPEG with the flash, PUTs it to S3 and reports the result on the flash LED.
+// A live view (no flash) is always served for aiming the camera; see liveview.h.
 
 #include <Arduino.h>
 #include <WiFi.h>
@@ -9,6 +10,7 @@
 #include "camera.h"
 #include "config.h"
 #include "feedback.h"
+#include "liveview.h"
 #include "net.h"
 #include "trigger.h"
 #include "uploader.h"
@@ -48,24 +50,22 @@ static Signal runCapture(const char *trigger) {
     return signalFor(api);
   }
 
-  camera_fb_t *fb = cameraCapture(flashEnabled);
-  if (!fb) {
+  CapturedJpeg jpeg;
+  if (!cameraCapture(flashEnabled, jpeg)) {
     lastResult = "capture failed";
     return Signal::Transient;
   }
 
-  UploadResult up = uploadJpeg(ticket, fb->buf, fb->len);
+  UploadResult up = uploadJpeg(ticket, jpeg.buf, jpeg.len);
   if (up == UploadResult::Expired) {
     Serial.println("[s3] URL expired; requesting a fresh one for the same frame");
     api = requestUploadTicket(trigger, ticket);
     if (api != ApiResult::Ok) {
-      esp_camera_fb_return(fb);
       lastResult = String("api ") + apiResultName(api);
       return signalFor(api);
     }
-    up = uploadJpeg(ticket, fb->buf, fb->len);
+    up = uploadJpeg(ticket, jpeg.buf, jpeg.len);
   }
-  esp_camera_fb_return(fb);
 
   lastResult = up == UploadResult::Ok ? "ok " + ticket.key : String("upload ") + uploadResultName(up);
   return signalFor(up);
@@ -171,11 +171,13 @@ void setup() {
   feedbackBegin();
   irWaves.begin();
   wifiBegin();
+  liveViewBegin();
   Serial.println("Commands: snap | status | irscan | flash on|off | signals");
 }
 
 void loop() {
   wifiWatchdog();
+  liveViewPoll();
   handleSerial();
   pollIr();
   delay(1);  // 1 ms sampling: idle chatter must never look like a 20 ms LOW run

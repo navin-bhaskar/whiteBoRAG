@@ -24,6 +24,18 @@
 #define HREF_GPIO_NUM  23
 #define PCLK_GPIO_NUM  22
 
+static framesize_t captureSize = FRAMESIZE_UXGA;
+static SemaphoreHandle_t camLock = nullptr;  // live view and captures take turns
+
+static bool setFrameSize(framesize_t size) {
+  sensor_t *s = esp_camera_sensor_get();
+  return s && s->set_framesize(s, size) == 0;
+}
+
+static uint8_t *bufAlloc(uint8_t *old, size_t n) {
+  return (uint8_t *)(psramFound() ? ps_realloc(old, n) : realloc(old, n));
+}
+
 bool cameraBegin() {
   camera_config_t config = {};
   config.ledc_channel = LEDC_CHANNEL_0;  // XCLK; feedback.cpp keeps clear of these
@@ -46,8 +58,9 @@ bool cameraBegin() {
   config.pin_reset = RESET_GPIO_NUM;
   config.xclk_freq_hz = 20000000;
   config.pixel_format = PIXFORMAT_JPEG;
-  // Single buffer + GRAB_LATEST so a capture is always a fresh frame.
-  config.fb_count = 1;
+  // Two buffers keep the live view moving; GRAB_LATEST plus the discarded
+  // frames in cameraCapture() keep captures fresh.
+  config.fb_count = 2;
   config.grab_mode = CAMERA_GRAB_LATEST;
 
   if (psramFound()) {
@@ -61,39 +74,85 @@ bool cameraBegin() {
     config.fb_location = CAMERA_FB_IN_DRAM;
   }
 
+  captureSize = config.frame_size;
   esp_err_t err = esp_camera_init(&config);
   if (err != ESP_OK) {
     Serial.printf("[cam] init failed: 0x%x\n", err);
+    return false;
+  }
+  camLock = xSemaphoreCreateMutex();
+  if (!camLock || !setFrameSize(STREAM_FRAMESIZE)) {
+    Serial.println("[cam] could not switch to live-view size");
     return false;
   }
   Serial.println("[cam] initialised");
   return true;
 }
 
-camera_fb_t *cameraCapture(bool useFlash) {
+// Holds camLock while it runs, so the live view pauses for about a second.
+static camera_fb_t *grabCaptureFrame(bool useFlash) {
+  if (!setFrameSize(captureSize)) {
+    Serial.println("[cam] could not switch to capture size");
+    return nullptr;
+  }
   if (useFlash) {
     flashSet(true);
     delay(FLASH_PRE_MS);
   }
-  // Discard a few frames so auto-exposure/white-balance adapt to the current
-  // lighting (including the flash) before the frame we keep.
-  int discard = useFlash ? FLASH_SETTLE_FRAMES : 1;
+  // Discard frames so both buffers hold full-size frames and auto-exposure/
+  // white-balance adapt to the current lighting (including the flash).
+  int discard = useFlash ? FLASH_SETTLE_FRAMES : 0;
+  if (discard < 2) discard = 2;
   for (int i = 0; i < discard; i++) {
     camera_fb_t *stale = esp_camera_fb_get();
     if (stale) esp_camera_fb_return(stale);
   }
   camera_fb_t *fb = esp_camera_fb_get();
   flashSet(false);
+  return fb;
+}
 
+bool cameraCapture(bool useFlash, CapturedJpeg &out) {
+  xSemaphoreTake(camLock, portMAX_DELAY);
+  camera_fb_t *fb = grabCaptureFrame(useFlash);
+  bool ok = false;
   if (!fb) {
     Serial.println("[cam] capture failed");
-    return nullptr;
-  }
-  if (fb->format != PIXFORMAT_JPEG) {
+  } else if (fb->format != PIXFORMAT_JPEG) {
     Serial.println("[cam] frame is not JPEG");
-    esp_camera_fb_return(fb);
-    return nullptr;
+  } else if (!(out.buf = bufAlloc(nullptr, fb->len))) {
+    Serial.printf("[cam] no memory for a %u byte frame\n", fb->len);
+  } else {
+    memcpy(out.buf, fb->buf, fb->len);
+    out.len = fb->len;
+    Serial.printf("[cam] captured %ux%u, %u bytes\n", fb->width, fb->height, fb->len);
+    ok = true;
   }
-  Serial.printf("[cam] captured %ux%u, %u bytes\n", fb->width, fb->height, fb->len);
-  return fb;
+  if (fb) esp_camera_fb_return(fb);
+  if (!setFrameSize(STREAM_FRAMESIZE)) Serial.println("[cam] could not switch back to live-view size");
+  xSemaphoreGive(camLock);
+  return ok;
+}
+
+bool cameraStreamFrame(uint8_t *&buf, size_t &cap, size_t &len) {
+  xSemaphoreTake(camLock, portMAX_DELAY);
+  camera_fb_t *fb = esp_camera_fb_get();
+  bool ok = false;
+  if (fb && fb->format == PIXFORMAT_JPEG) {
+    if (fb->len > cap) {
+      uint8_t *grown = bufAlloc(buf, fb->len);
+      if (grown) {
+        buf = grown;
+        cap = fb->len;
+      }
+    }
+    if (fb->len <= cap) {
+      memcpy(buf, fb->buf, fb->len);
+      len = fb->len;
+      ok = true;
+    }
+  }
+  if (fb) esp_camera_fb_return(fb);
+  xSemaphoreGive(camLock);
+  return ok;
 }
