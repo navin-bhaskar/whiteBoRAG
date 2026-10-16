@@ -34,3 +34,20 @@ def test_score_and_report(tmp_path):
     assert "| bedrock:m | raw |" in summary
     with open(rd / "scores.csv", encoding="utf-8") as f:
         assert list(csv.DictReader(f))[0].keys() == set(SCORE_FIELDS)
+
+
+def test_summary_columns_match_headers(tmp_path):
+    rd = tmp_path / "run"
+    rd.mkdir()
+    (rd / "run.json").write_text(json.dumps({"engines": ["textract"]}), encoding="utf-8")
+    row = {"engine": "textract", "variant": "raw", "image": "a.jpg", "environment": "env", "ok": True,
+           "word_precision": 0.5, "word_recall": 0.25, "word_f1": 0.333, "cer": 0.1,
+           "hallucination": 0.2, "edge_precision": None, "edge_recall": None, "checkbox_acc": None,
+           "latency_s": 1.0, "cost_usd": 0.0018}
+    write_report(rd, [row])
+    table = [l for l in (rd / "summary.md").read_text(encoding="utf-8").splitlines() if l.startswith("|")]
+    header = [c.strip() for c in table[0].strip("|").split("|")]
+    values = [c.strip() for c in table[2].strip("|").split("|")]
+    cell = dict(zip(header, values))
+    assert (cell["word F1"], cell["precision"], cell["recall"]) == ("0.333", "0.500", "0.250")
+    assert cell["$/capture"] == "0.00180"

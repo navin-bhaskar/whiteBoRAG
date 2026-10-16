@@ -20,7 +20,10 @@ from harness.scoring import (
 SCORE_FIELDS = ["engine", "variant", "image", "environment", "ok", "word_precision", "word_recall",
                 "word_f1", "cer", "hallucination", "edge_precision", "edge_recall", "checkbox_acc",
                 "latency_s", "cost_usd"]
-METRICS = SCORE_FIELDS[5:]
+SUMMARY_COLUMNS = [("word F1", "word_f1"), ("precision", "word_precision"), ("recall", "word_recall"),
+                   ("CER", "cer"), ("hallucination", "hallucination"), ("edge P", "edge_precision"),
+                   ("edge R", "edge_recall"), ("checkbox", "checkbox_acc"), ("latency s", "latency_s"),
+                   ("$/capture", "cost_usd")]
 
 
 def _read(path: Path) -> str:
@@ -95,13 +98,12 @@ def write_report(run_dir: Path, rows: list[dict]) -> None:
         "",
         "## By engine × variant",
         "",
-        "| engine | variant | n ok | failed | word F1 | precision | recall | CER | hallucination "
-        "| edge P | edge R | checkbox | latency s | $/capture |",
-        "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|",
+        "| engine | variant | n ok | failed | " + " | ".join(label for label, _ in SUMMARY_COLUMNS) + " |",
+        "|---|---|---|---|" + "---|" * len(SUMMARY_COLUMNS),
     ]
     for key in ranked:
         ok = ok_rows(key)
-        cells = [_fmt(_mean(ok, m)) for m in METRICS]
+        cells = [_fmt(_mean(ok, field)) for _, field in SUMMARY_COLUMNS]
         cells[-1] = "–" if _mean(ok, "cost_usd") is None else f"{_mean(ok, 'cost_usd'):.5f}"
         lines.append(f"| {key[0]} | {key[1]} | {len(ok)} | {len(groups[key]) - len(ok)} | "
                      + " | ".join(cells) + " |")
