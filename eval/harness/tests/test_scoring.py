@@ -23,7 +23,13 @@ def test_normalize_drops_untitled_heading():
 
 
 def test_normalize_drops_scaffolding_keeps_label():
-    assert normalize('## Diagram\nEdges:\n- A → B, labelled "API key"') == "a b api key"
+    assert normalize('## Diagram\nEdges:\n- A → B, labelled "API key"') == "api key"
+
+
+def test_normalize_counts_node_names_once():
+    # Node names are written once on the board; edge lines only add their labels.
+    md = '## Diagram\n- Chunk\n- Vector store\nEdges:\n- Chunk → Vector store, labelled "embed"\n- Vector store → Chunk\n\n## TODO\n- a → b'
+    assert normalize(md) == "chunk vector store embed todo a b"
 
 
 def test_normalize_keeps_lambda():

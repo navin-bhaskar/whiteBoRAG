@@ -6,19 +6,39 @@ from collections import Counter
 from rapidfuzz import fuzz
 from rapidfuzz.distance import Levenshtein
 
-from harness.dataset import Checkbox, Edge
+from harness.dataset import EDGE_RE, Checkbox, Edge
 
 MATCH_RATIO = 80
 SCAFFOLDING_LINES = {"## Diagram", "Edges:"}
 
 
+def _board_text_lines(md: str) -> list[str]:
+    """Lines whose words are written on the board, each word as often as it is written.
+
+    Edge lines repeat node names already listed under the diagram, so only their labels count.
+    """
+    lines, in_edges = [], False
+    for line in md.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("#"):
+            in_edges = False
+            if "(untitled)" in line:
+                continue
+        if stripped == "Edges:":
+            in_edges = True
+            continue
+        if stripped in SCAFFOLDING_LINES:
+            continue
+        if in_edges and (edge := EDGE_RE.match(line)):
+            if edge.group(3):
+                lines.append(edge.group(3))
+            continue
+        lines.append(line)
+    return lines
+
+
 def normalize(md: str) -> str:
-    lines = [
-        line for line in md.splitlines()
-        if not (line.lstrip().startswith("#") and "(untitled)" in line)
-        and line.strip() not in SCAFFOLDING_LINES
-    ]
-    s = "\n".join(lines)
+    s = "\n".join(_board_text_lines(md))
     s = s.replace(", labelled", " ")
     s = re.sub(r"\([^)]*\)", " ", s)
     s = re.sub(r"\[[ xX]\]", " ", s)
