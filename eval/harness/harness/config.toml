@@ -6,22 +6,22 @@ worst_case_input_tokens = 2000
 prompt = "transcribe-v1.md"
 
 [prices]
-verified_on = "unverified"   # Task 9 checks the ap-south-1 pricing pages and sets a date
+verified_on = "2026-10-16"   # AWS public price list for ap-south-1 (Bedrock list published 2026-10-14)
 textract_detect_per_page = 0.0015
 textract_layout_per_page = 0.004
-rekognition_detect_text_per_image = 0.001
+rekognition_detect_text_per_image = 0.00125
 
 [models.nova-lite]
 profile = "apac.amazon.nova-lite-v1:0"
-input_per_1k = 0.00006
-output_per_1k = 0.00024
+input_per_1k = 0.000071
+output_per_1k = 0.000284
 
 [models.nova-pro]
 profile = "apac.amazon.nova-pro-v1:0"
-input_per_1k = 0.0008
-output_per_1k = 0.0032
+input_per_1k = 0.00094
+output_per_1k = 0.00376
 
 [models.nova-2-lite]
 profile = "global.amazon.nova-2-lite-v1:0"
-input_per_1k = 0.0003
-output_per_1k = 0.0025
+input_per_1k = 0.00035
+output_per_1k = 0.00295
