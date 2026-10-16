@@ -24,3 +24,6 @@ __pycache__/
 # Planning docs (local only)
 docs/superpowers/
 .superpowers/
+
+# OCR eval runs
+eval/runs/
