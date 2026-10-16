@@ -14,3 +14,8 @@ def test_load_default_config():
 
 def test_eval_dir_points_at_dataset():
     assert (EVAL_DIR / "manifest.csv").exists()
+
+
+def test_worst_case_input_covers_observed_calls():
+    # The full run saw up to 2,658 input tokens (hybrid: image + prompt + Textract hints).
+    assert load_config().worst_case_input_tokens >= 4000

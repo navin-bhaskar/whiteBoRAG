@@ -51,3 +51,16 @@ def test_summary_columns_match_headers(tmp_path):
     cell = dict(zip(header, values))
     assert (cell["word F1"], cell["precision"], cell["recall"]) == ("0.333", "0.500", "0.250")
     assert cell["$/capture"] == "0.00180"
+
+
+def test_rescoring_keeps_written_recommendation(tmp_path):
+    rd = tmp_path / "run"
+    rd.mkdir()
+    (rd / "run.json").write_text(json.dumps({"engines": ["textract"]}), encoding="utf-8")
+    (rd / "recommendation.md").write_text("Pick nova-2-lite.", encoding="utf-8")
+    row = {"engine": "textract", "variant": "raw", "image": "a.jpg", "environment": "env", "ok": False}
+    write_report(rd, [row])
+    write_report(rd, [row])
+    summary = (rd / "summary.md").read_text(encoding="utf-8")
+    assert summary.rstrip().endswith("Pick nova-2-lite.")
+    assert "_To be written" not in summary

@@ -5,7 +5,7 @@ import time
 import boto3
 
 from harness.config import Config, ModelConfig
-from harness.engines import EngineResult, prompt_text, textract
+from harness.engines import EngineError, EngineResult, prompt_text, textract
 from harness.engines.bedrock import Converser, converse_text, strip_fences
 
 HINT_INTRO = "These are OCR lines from the same image. Use them as hints; the image is authoritative:"
@@ -30,10 +30,18 @@ class Hybrid:
     def run(self, image: bytes) -> EngineResult:
         start = time.perf_counter()
         ocr = self.textract.run(image)
-        resp, usage, cost = self.converser.call(image, hint_prompt(self.prompt, ocr.text.splitlines()))
+        try:
+            resp, usage, cost = self.converser.call(image, hint_prompt(self.prompt, ocr.text.splitlines()))
+        except Exception as exc:
+            raise EngineError(f"Bedrock failed after Textract: {exc!r}", ocr.cost_usd) from exc
         latency = time.perf_counter() - start
+        try:
+            text = converse_text(resp)
+        except (KeyError, IndexError) as exc:
+            raise EngineError(f"no text in response (stopReason={resp.get('stopReason')})",
+                              ocr.cost_usd + cost) from exc
         return EngineResult(
-            strip_fences(converse_text(resp)),
+            strip_fences(text),
             {"textract": ocr.raw, "bedrock": resp},
             {**usage, "pages": 1},
             ocr.cost_usd + cost,

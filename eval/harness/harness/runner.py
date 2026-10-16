@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from harness.dataset import Sample
-from harness.engines import Engine, engine_dir
+from harness.engines import Engine, EngineError, engine_dir
 from harness.ledger import BudgetExceeded, Ledger
 from harness.preprocess import prepare
 
@@ -72,17 +72,23 @@ def run(run_dir: Path, images_dir: Path, samples: list[Sample], engines: list[En
         try:
             result = engine.run(image)
         except Exception as exc:
-            _write_json(response, {"ok": False, "error": repr(exc)})
+            cost = exc.cost_usd if isinstance(exc, EngineError) else 0.0
+            if cost:
+                ledger.record({"run": run_dir.name, "engine": engine.id, "variant": variant,
+                               "image": sample.image, "ok": False, "cost_usd": cost})
+                stats.spent_usd += cost
+            _write_json(response, {"ok": False, "error": repr(exc), "cost_usd": cost})
             stats.failed += 1
             print(f"[{n}/{len(pending)}] {engine.id} {variant} {sample.image} FAILED {exc!r}")
             continue
-        _write_json(response, {"ok": True, "raw": result.raw, "usage": result.usage,
-                               "cost_usd": result.cost_usd, "latency_s": result.latency_s})
+        # Ledger first, ok-response last: a crash in between costs a re-run, never an unrecorded spend.
+        ledger.record({"run": run_dir.name, "engine": engine.id, "variant": variant,
+                       "image": sample.image, "usage": result.usage, "cost_usd": result.cost_usd})
         transcript = run_dir / "transcripts" / engine_dir(engine.id) / variant / f"{stem}.md"
         transcript.parent.mkdir(parents=True, exist_ok=True)
         transcript.write_text(result.text, encoding="utf-8")
-        ledger.record({"run": run_dir.name, "engine": engine.id, "variant": variant,
-                       "image": sample.image, "usage": result.usage, "cost_usd": result.cost_usd})
+        _write_json(response, {"ok": True, "raw": result.raw, "usage": result.usage,
+                               "cost_usd": result.cost_usd, "latency_s": result.latency_s})
         stats.done += 1
         stats.spent_usd += result.cost_usd
         print(f"[{n}/{len(pending)}] {engine.id} {variant} {sample.image} ok ${result.cost_usd:.5f}")

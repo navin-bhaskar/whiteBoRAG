@@ -117,6 +117,10 @@ def write_report(run_dir: Path, rows: list[dict]) -> None:
         lines.append(f"| {key[0]} | {key[1]} | " + " | ".join(cells) + " |")
 
     total = sum(r["cost_usd"] for r in rows if r["ok"])
+    # The recommendation is hand-written in its own file so that re-scoring never overwrites it.
+    rec_path = run_dir / "recommendation.md"
+    recommendation = (_read(rec_path).strip() if rec_path.exists()
+                      else "_To be written after reviewing the results, in recommendation.md._")
     lines += ["", "## Cost", "", f"Total for this run: ${total:.4f}", "",
-              "## Recommendation", "", "_To be written after reviewing the results._", ""]
+              "## Recommendation", "", recommendation, ""]
     (run_dir / "summary.md").write_text("\n".join(lines), encoding="utf-8")

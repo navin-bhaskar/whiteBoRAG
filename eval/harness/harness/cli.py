@@ -13,13 +13,21 @@ import boto3
 
 from harness.config import EVAL_DIR, load_config
 from harness.dataset import load_manifest
-from harness.engines import build_engines, prompt_hash
+from harness.engines import EngineError, build_engines, prompt_hash
 from harness.ledger import BudgetExceeded, Ledger
 from harness.report import score_run, write_report
 from harness.runner import run
 
 LEDGER_PATH = EVAL_DIR / "runs" / "ledger.jsonl"
 IMAGES_DIR = EVAL_DIR / "images"
+
+
+RESUME_KEYS = ("prompt_hash", "models", "max_tokens")
+
+
+def resume_conflicts(old: dict, new: dict) -> list[str]:
+    """Settings that differ from the run being resumed; mixing them would make results incomparable."""
+    return [key for key in RESUME_KEYS if key in old and old[key] != new[key]]
 
 
 def _git_sha() -> str:
@@ -45,6 +53,8 @@ def cmd_check(args) -> int:
             result = engine.run(image)
         except Exception as exc:
             failures += 1
+            if isinstance(exc, EngineError) and exc.cost_usd:
+                ledger.record({"run": "check", "engine": engine.id, "ok": False, "cost_usd": exc.cost_usd})
             print(f"  {engine.id:22} FAILED {exc!r}")
             continue
         ledger.record({"run": "check", "engine": engine.id, "usage": result.usage,
@@ -68,14 +78,19 @@ def cmd_run(args) -> int:
     run_dir = Path(args.run) if args.run else EVAL_DIR / "runs" / datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
     meta_path = run_dir / "run.json"
     meta = json.loads(meta_path.read_text(encoding="utf-8")) if meta_path.exists() else {}
+    settings = {"prompt_hash": prompt_hash(cfg), "models": {m.id: m.profile for m in cfg.models.values()},
+                "max_tokens": cfg.max_tokens}
+    if conflicts := resume_conflicts(meta, settings):
+        print(f"refusing to resume {run_dir}: {', '.join(conflicts)} changed since it started; "
+              "start a new run instead")
+        return 2
     # Resuming with a wider selection grows the run; scoring covers the union.
     merged = lambda key, new: list(dict.fromkeys(meta.get(key, []) + new))
     meta.update(
         engines=merged("engines", [e.id for e in engines]),
         variants=merged("variants", variants),
         images=merged("images", [s.image for s in samples]),
-        models={m.id: m.profile for m in cfg.models.values()},
-        prompt_hash=prompt_hash(cfg),
+        **settings,
         region=cfg.region,
         git_sha=_git_sha(),
         prices_verified_on=cfg.prices_verified_on,

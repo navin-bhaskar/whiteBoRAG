@@ -18,6 +18,14 @@ class EngineResult:
     latency_s: float
 
 
+class EngineError(Exception):
+    """A failed call that AWS may still have billed; cost_usd is what was already spent."""
+
+    def __init__(self, message: str, cost_usd: float):
+        super().__init__(message)
+        self.cost_usd = cost_usd
+
+
 class Engine(Protocol):
     id: str
     structured: bool

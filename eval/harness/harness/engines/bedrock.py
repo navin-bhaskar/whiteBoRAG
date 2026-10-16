@@ -6,7 +6,7 @@ import time
 import boto3
 
 from harness.config import Config, ModelConfig
-from harness.engines import EngineResult, prompt_text
+from harness.engines import EngineError, EngineResult, prompt_text
 from harness.ledger import bedrock_cost
 
 FENCE_RE = re.compile(r"^\s*```[\w-]*\s*\n(.*?)\n\s*```\s*$", re.DOTALL)
@@ -63,4 +63,8 @@ class Bedrock:
         start = time.perf_counter()
         resp, usage, cost = self.converser.call(image, self.prompt)
         latency = time.perf_counter() - start
-        return EngineResult(strip_fences(converse_text(resp)), resp, usage, cost, latency)
+        try:
+            text = converse_text(resp)
+        except (KeyError, IndexError) as exc:
+            raise EngineError(f"no text in response (stopReason={resp.get('stopReason')})", cost) from exc
+        return EngineResult(strip_fences(text), resp, usage, cost, latency)

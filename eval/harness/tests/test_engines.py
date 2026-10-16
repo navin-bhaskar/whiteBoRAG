@@ -62,3 +62,43 @@ def test_engine_dir():
 def test_worst_case_costs_are_bounded():
     for e in build_engines(["all"], load_config(), _session()):
         assert 0 < e.worst_case_cost() < 0.02
+
+
+class _FakeConverser:
+    def __init__(self, resp=None, error=None):
+        self.resp, self.error = resp, error
+
+    def worst_case_cost(self):
+        return 0.01
+
+    def call(self, image, prompt):
+        if self.error:
+            raise self.error
+        return self.resp, {"input_tokens": 1, "output_tokens": 1}, 0.0025
+
+
+def test_bedrock_unparseable_response_still_reports_cost():
+    from harness.engines import EngineError
+    eng = build_engines(["bedrock:nova-lite"], load_config(), _session())[0]
+    eng.converser = _FakeConverser(resp={"output": {"message": {"content": []}}, "stopReason": "guardrail_intervened"})
+    with pytest.raises(EngineError) as exc:
+        eng.run(b"img")
+    assert exc.value.cost_usd == 0.0025
+
+
+def test_hybrid_bedrock_failure_reports_textract_cost():
+    from harness.engines import EngineError, EngineResult
+
+    class FakeTextract:
+        def worst_case_cost(self):
+            return 0.0018
+
+        def run(self, image):
+            return EngineResult("line", {}, {"pages": 1}, 0.0018, 0.1)
+
+    eng = build_engines(["hybrid:nova-lite"], load_config(), _session())[0]
+    eng.textract = FakeTextract()
+    eng.converser = _FakeConverser(error=RuntimeError("AccessDeniedException"))
+    with pytest.raises(EngineError) as exc:
+        eng.run(b"img")
+    assert exc.value.cost_usd == 0.0018
