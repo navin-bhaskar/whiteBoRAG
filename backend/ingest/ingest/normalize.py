@@ -27,6 +27,12 @@ def _bullets(items: list[str]) -> str:
     return "\n".join(f"- {item}" for item in items) or "(none yet)"
 
 
+def strip_fence(text: str) -> str:
+    """Unwrap a reply the model put in a code fence despite being told not to."""
+    text = text.strip()
+    return fenced.group(1).strip() if (fenced := FENCE_RE.match(text)) else text
+
+
 def build_prompt(verbatim: str, project_names: list[str], todo_texts: list[str]) -> str:
     return (
         PROMPT.replace("{{PROJECTS}}", _bullets(project_names))
@@ -39,9 +45,7 @@ def parse_response(text: str) -> tuple[str | None, str]:
     lines = text.strip().splitlines()
     if len(lines) < 3 or not (m := PROJECT_RE.match(lines[0])) or lines[1].strip() != "---":
         raise NormalizationError(f"unexpected reply start: {text[:80]!r}")
-    body = "\n".join(lines[2:]).strip()
-    if fenced := FENCE_RE.match(body):
-        body = fenced.group(1).strip()
+    body = strip_fence("\n".join(lines[2:]))
     project = m.group(1)
     return (None if project.lower() == "none" else project), body
 
@@ -71,12 +75,14 @@ def project_name(verbatim: str, chosen: str, nova_project: str | None) -> str | 
 
 
 def decide(verbatim: str, reply: str | None) -> Normalized:
-    if reply is not None:
-        try:
-            nova_project, body = parse_response(reply)
-        except NormalizationError:
-            pass
-        else:
-            if guard_ok(verbatim, body):
-                return Normalized(body, project_name(verbatim, body, nova_project), False)
-    return Normalized(verbatim, project_name(verbatim, verbatim, None), True)
+    """Keep the normalized text if it parses and passes the guard; otherwise fall back to the verbatim text.
+
+    A reply that parses but fails the guard still contributes its `Project:` pick (spec §4.3, rule 3).
+    """
+    try:
+        nova_project, body = parse_response(reply) if reply is not None else (None, None)
+    except NormalizationError:
+        nova_project, body = None, None
+    if body is not None and guard_ok(verbatim, body):
+        return Normalized(body, project_name(verbatim, body, nova_project), False)
+    return Normalized(verbatim, project_name(verbatim, verbatim, nova_project), True)

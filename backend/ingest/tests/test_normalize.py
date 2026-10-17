@@ -84,7 +84,12 @@ def test_decide_rejected_uses_verbatim_rules():
     plain = "# tender crawler plan\n- a"
     result = decide(plain, "Project: tender crawler\n---\n# tender crawler plan\n- a\n- b")
     assert result.rejected is True
-    assert result.project_name is None
+    assert result.project_name == "tender crawler"  # spec §4.3: rule 3 (the Project: line) still applies
+
+
+def test_decide_unparseable_reply_has_no_nova_pick():
+    assert decide("# tender crawler plan\n- a", "# just markdown").project_name is None
+    assert decide("# tender crawler plan\n- a", None).project_name is None
 
 
 def test_decide_none_reply():

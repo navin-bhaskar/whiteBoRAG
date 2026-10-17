@@ -2,6 +2,7 @@
 
 from copy import deepcopy
 
+from ingest.pipeline import Reply
 from ingest.store import CaptureRecord, Conflict, Link, Project
 from ingest.todos import TodoItem
 
@@ -77,3 +78,62 @@ class InMemoryStore:
 
     def put_capture(self, rec: CaptureRecord) -> None:
         self.captures[rec.capture_id] = deepcopy(rec)
+
+
+class FakeBlobs:
+    def __init__(self, files: dict[str, bytes | str] | None = None) -> None:
+        self.files: dict[str, bytes | str] = dict(files or {})
+
+    def get_bytes(self, key: str) -> bytes | None:
+        value = self.files.get(key)
+        return value if isinstance(value, bytes) else None
+
+    def get_text(self, key: str) -> str | None:
+        value = self.files.get(key)
+        return value if isinstance(value, str) else None
+
+    def put_text(self, key: str, text: str) -> None:
+        self.files[key] = text
+
+
+class FakeReader:
+    """Returns canned replies and counts its calls."""
+
+    def __init__(self, transcript: Reply, normalized: Reply) -> None:
+        self.transcript = transcript
+        self.normalized = normalized
+        self.calls = 0
+        self.prompts: list[str] = []
+
+    def transcribe(self, image: bytes) -> Reply:
+        self.calls += 1
+        return self.transcript
+
+    def normalize(self, prompt: str) -> Reply:
+        self.calls += 1
+        self.prompts.append(prompt)
+        return self.normalized
+
+
+class FakeEmbedder:
+    def __init__(self) -> None:
+        self.texts: list[str] = []
+
+    def embed(self, text: str) -> list[float]:
+        self.texts.append(text)
+        return [float(len(text)), 1.0]
+
+
+class FakeVectors:
+    def __init__(self) -> None:
+        self.records: dict[str, dict] = {}
+
+    def put(self, records: list[dict]) -> None:
+        self.records.update({r["key"]: deepcopy(r) for r in records})
+
+    def delete(self, keys: list[str]) -> None:
+        for key in keys:
+            self.records.pop(key, None)
+
+    def get(self, keys: list[str]) -> list[dict]:
+        return [deepcopy(self.records[k]) for k in keys if k in self.records]
