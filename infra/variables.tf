@@ -8,3 +8,8 @@ variable "devices" {
     error_message = "Each device ID must match ^[a-z0-9-]{1,32}$."
   }
 }
+
+variable "alert_email" {
+  description = "Email address that receives the ingest DLQ alarm. Confirm the subscription email AWS sends."
+  type        = string
+}
