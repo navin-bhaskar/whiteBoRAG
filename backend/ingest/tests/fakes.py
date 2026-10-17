@@ -14,6 +14,8 @@ class InMemoryStore:
         self.captures: dict[str, CaptureRecord] = {}
         # Set to a Project to simulate another Lambda creating it just before our create_project.
         self.fail_next_create: Project | None = None
+        # Set to True to make the next save_todo lose, as if another Lambda wrote the todo first.
+        self.fail_next_save_todo = False
 
     def list_projects(self) -> list[Project]:
         return [deepcopy(p) for p in self.projects.values()]
@@ -55,13 +57,19 @@ class InMemoryStore:
         return [deepcopy(t) for (pk, _), t in self.todos.items() if pk == project_key]
 
     def save_todo(self, project_key: str, item: TodoItem) -> None:
+        if self.fail_next_save_todo:
+            self.fail_next_save_todo = False
+            raise Conflict(f"todo {item.todo_id} changed")
         stored = self.todos.get((project_key, item.todo_id))
         if (stored is None) != (item.version == 0) or (stored is not None and stored.version != item.version):
             raise Conflict(f"todo {item.todo_id} changed")
         self.todos[(project_key, item.todo_id)] = deepcopy(item)
         self.todos[(project_key, item.todo_id)].version += 1
 
-    def delete_todo(self, project_key: str, todo_id: str) -> None:
+    def delete_todo(self, project_key: str, todo_id: str, version: int) -> None:
+        stored = self.todos.get((project_key, todo_id))
+        if stored is not None and stored.version != version:
+            raise Conflict(f"todo {todo_id} changed")
         self.todos.pop((project_key, todo_id), None)
 
     def get_capture(self, capture_id: str) -> CaptureRecord | None:

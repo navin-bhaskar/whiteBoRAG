@@ -3,8 +3,12 @@
 from datetime import datetime, timezone
 from typing import Callable
 
+from ingest.board import Todo
+from ingest.events import Capture
 from ingest.projects import canonical_key, match_project, summarize
 from ingest.store import CaptureRecord, Conflict, Link, Project, Store, with_retries
+from ingest.todos import Sighting, TodoItem, derive, match_todos
+from ingest.ulid import new_ulid
 
 
 def _now() -> str:
@@ -60,3 +64,39 @@ def remove_from_project(store: Store, rec: CaptureRecord) -> None:
         Link(rec.project, rec.captured_at, rec.capture_id, rec.date, rec.title_as_seen, rec.project_name_as_seen or "")
     )
     with_retries(lambda: refresh_project(store, rec.project))
+
+
+def apply_todos(store: Store, project_key: str, capture: Capture, board_todos: list[Todo]) -> list[str]:
+    """Record this capture's sighting on each board todo, matching known todos. Returns the todo_ids in board order."""
+
+    def attempt() -> list[str]:
+        # Re-read and re-match on every attempt, so a retry never applies a decision made on stale state.
+        existing = store.list_todos(project_key)
+        by_id = {item.todo_id: item for item in existing}
+        ids = []
+        for todo, todo_id in zip(board_todos, match_todos(board_todos, existing)):
+            item = by_id[todo_id] if todo_id else TodoItem(new_ulid(), {})
+            item.sightings[capture.capture_id] = Sighting(
+                capture.capture_id, capture.date, capture.captured_at, todo.checked, todo.text
+            )
+            store.save_todo(project_key, derive(item))
+            ids.append(item.todo_id)
+        return ids
+
+    return with_retries(attempt)
+
+
+def remove_sightings(store: Store, project_key: str, capture_id: str, todo_ids: list[str]) -> None:
+    """Undo apply_todos: drop this capture's sighting, deleting todos left with none."""
+
+    def remove(todo_id: str) -> None:
+        item = next((t for t in store.list_todos(project_key) if t.todo_id == todo_id), None)
+        if item is None or item.sightings.pop(capture_id, None) is None:
+            return
+        if item.sightings:
+            store.save_todo(project_key, derive(item))
+        else:
+            store.delete_todo(project_key, todo_id, item.version)
+
+    for todo_id in todo_ids:
+        with_retries(lambda: remove(todo_id))
