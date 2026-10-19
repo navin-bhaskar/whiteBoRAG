@@ -43,7 +43,7 @@ def test_fresh_ingest():
     assert rec.edges[0] == {"src": "Dp32", "dst": "API gateway", "label": "AWS key"}
     assert rec.normalization_rejected is False
     assert rec.title_as_seen == "White BORAH architecture"
-    assert rec.prompt_versions == {"transcribe": "transcribe-v2", "normalize": "normalize-v1"}
+    assert rec.prompt_versions == {"transcribe": "transcribe-v3", "normalize": "normalize-v1"}
     assert rec.vector_keys == [f"{CID}#0", f"{CID}#1"]
     assert {t.text for t in d.store.list_todos("whiteborag")} >= {"Test terraform code"}
 
@@ -150,3 +150,27 @@ def test_reapply_after_partial_apply_is_idempotent():
     todos = d.store.list_todos("whiteborag")
     assert len(todos) == 3
     assert all(list(t.sightings) == [CID] for t in todos)
+
+
+UNUSABLE = "# (unusable)\nToo blurry to read."
+
+
+def test_unusable_deletes_image_and_writes_nothing():
+    d = deps(UNUSABLE)
+    out = run(d)
+    assert (out.status, out.reason) == ("deleted_unusable", "Too blurry to read.")
+    assert d.reader.calls == 1
+    assert d.blobs.files == {}
+    assert d.store.captures == {} and d.store.projects == {} and d.store.links == {} and d.store.todos == {}
+    assert d.vectors.records == {}
+
+
+def test_unusable_reread_undoes_previous_ingest():
+    d = deps()
+    run(d)
+    d.reader.transcript = Reply(UNUSABLE, False)
+    out = run(d, reread=True)
+    assert out.status == "deleted_unusable"
+    assert d.blobs.files == {}
+    assert d.store.captures == {} and d.store.projects == {} and d.store.links == {} and d.store.todos == {}
+    assert d.vectors.records == {}

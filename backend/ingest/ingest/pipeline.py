@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from typing import Callable, Protocol
 
 from ingest import normalize, vectors
-from ingest.board import Todo, parse_board
+from ingest.board import Todo, parse_board, unusable_reason
 from ingest.events import Capture, Job
 from ingest.projects import canonical_key, match_project, summarize
 from ingest.store import CaptureRecord, Conflict, Link, Project, Store, with_retries
@@ -104,13 +104,14 @@ def remove_sightings(store: Store, project_key: str, capture_id: str, todo_ids: 
         with_retries(lambda: remove(todo_id))
 
 
-TRANSCRIBE_VERSION = "transcribe-v2"
+TRANSCRIBE_VERSION = "transcribe-v3"
 
 
 class Blobs(Protocol):
     def get_bytes(self, key: str) -> bytes | None: ...
     def get_text(self, key: str) -> str | None: ...
     def put_text(self, key: str, text: str) -> None: ...
+    def delete(self, key: str) -> None: ...
 
 
 @dataclass(frozen=True)
@@ -145,19 +146,38 @@ class Deps:
 
 @dataclass(frozen=True)
 class Outcome:
-    status: str  # "ingested" or "skipped_missing_image"
+    status: str  # "ingested", "skipped_missing_image" or "deleted_unusable"
     capture_id: str
     project: str | None = None
     todos: int = 0
     vectors: int = 0
     normalization_rejected: bool = False
     reused: bool = False
+    reason: str | None = None  # why the model judged the photo unusable
 
 
 def _normalize_prompt(store: Store, verbatim: str) -> str:
     projects = store.list_projects()
     todo_texts = [t.text for p in projects for t in store.list_todos(p.key)]
     return normalize.build_prompt(verbatim, [p.display_name for p in projects], todo_texts)
+
+
+def undo_previous(store: Store, old: CaptureRecord) -> None:
+    """Undo a capture's previous project link and todo sightings."""
+    if old.project is not None:
+        remove_sightings(store, old.project, old.capture_id, old.todo_ids)
+    remove_from_project(store, old)
+
+
+def delete_unusable(deps: Deps, capture: Capture, old: CaptureRecord | None) -> None:
+    """Remove every trace of a capture. The image goes last, so a crash midway is finished by the SQS retry."""
+    if old is not None:
+        undo_previous(deps.store, old)
+        if old.vector_keys:
+            deps.vectors.delete(old.vector_keys)
+        deps.store.delete_capture(capture.capture_id)
+    for key in (capture.normalized_key, capture.transcript_key, capture.s3_key):
+        deps.blobs.delete(key)
 
 
 def ingest_capture(deps: Deps, job: Job, now: Callable[[], str]) -> Outcome:
@@ -177,6 +197,9 @@ def ingest_capture(deps: Deps, job: Job, now: Callable[[], str]) -> Outcome:
         if reply.text is None:
             raise RuntimeError(f"transcription returned no text for {capture.s3_key}")
         verbatim, truncated = normalize.strip_fence(reply.text), reply.truncated
+        if (reason := unusable_reason(verbatim)) is not None:
+            delete_unusable(deps, capture, old)
+            return Outcome("deleted_unusable", capture.capture_id, reason=reason)
         deps.blobs.put_text(capture.transcript_key, verbatim)
 
     # 2–3. Normalize spelling (reused likewise), then keep it only if the guard passes.
@@ -195,9 +218,7 @@ def ingest_capture(deps: Deps, job: Job, now: Callable[[], str]) -> Outcome:
 
     # 5. Undo the previous ingest of this capture, if any.
     if old is not None:
-        if old.project is not None:
-            remove_sightings(store, old.project, capture.capture_id, old.todo_ids)
-        remove_from_project(store, old)
+        undo_previous(store, old)
 
     # 6–7. Apply the project, then (only for a project) the todos.
     name = decision.project_name

@@ -8,6 +8,7 @@ EDGE_RE = re.compile(r'^\s*-\s*(.+?)\s*(?:→|->|=>)\s*(.+?)(?:\s*,\s*labell?ed\
 CHECKBOX_RE = re.compile(r"^\s*-\s*\[([ xX])\]\s*(.+?)\s*$")
 ANNOTATION_RE = re.compile(r"\s*\([^)]*\)")
 UNTITLED = "(untitled)"
+UNUSABLE = "# (unusable)"
 
 
 @dataclass(frozen=True)
@@ -69,6 +70,12 @@ def _edges(block: list[str]) -> list[Edge]:
         elif in_edges and (edge := EDGE_RE.match(line)):
             edges.append(Edge(_node(edge.group(1)), _node(edge.group(2)), edge.group(3)))
     return edges
+
+
+def unusable_reason(md: str) -> str | None:
+    """The model's reason when it judged the photo unreadable (prompt v3), else None."""
+    first, _, rest = md.strip().partition("\n")
+    return rest.strip() if first.strip() == UNUSABLE else None
 
 
 def parse_board(md: str) -> Board:

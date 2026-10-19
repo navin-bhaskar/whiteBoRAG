@@ -11,7 +11,7 @@ from botocore.exceptions import ClientError
 
 from ingest import PROMPTS_DIR
 from ingest.normalize import strip_fence
-from ingest.pipeline import Deps, Reply
+from ingest.pipeline import TRANSCRIBE_VERSION, Deps, Reply
 from ingest.store import CaptureRecord, Conflict, Link, Project
 from ingest.todos import Sighting, TodoItem
 
@@ -182,6 +182,9 @@ class DynamoStore:
     def put_capture(self, rec: CaptureRecord) -> None:
         self._put({"pk": f"CAPTURE#{rec.capture_id}", "sk": "META", **vars(rec)})
 
+    def delete_capture(self, capture_id: str) -> None:
+        self._delete(f"CAPTURE#{capture_id}", "META")
+
 
 class S3Blobs:
     def __init__(self, bucket: str) -> None:
@@ -205,6 +208,9 @@ class S3Blobs:
         self.s3.put_object(Bucket=self.bucket, Key=key, Body=text.encode("utf-8"),
                            ContentType="text/markdown; charset=utf-8")
 
+    def delete(self, key: str) -> None:
+        self.s3.delete_object(Bucket=self.bucket, Key=key)
+
 
 class BedrockReader:
     """Nova 2 Lite via Converse, with the same request shape as the eval harness Converser."""
@@ -212,7 +218,7 @@ class BedrockReader:
     def __init__(self, model_id: str) -> None:
         self.model_id = model_id
         self.client = boto3.client("bedrock-runtime", config=BEDROCK_CONFIG)
-        self.transcribe_prompt = (PROMPTS_DIR / "transcribe-v2.md").read_text(encoding="utf-8")
+        self.transcribe_prompt = (PROMPTS_DIR / f"{TRANSCRIBE_VERSION}.md").read_text(encoding="utf-8")
 
     def _converse(self, content: list[dict]) -> Reply:
         resp = self.client.converse(

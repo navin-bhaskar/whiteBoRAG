@@ -6,6 +6,7 @@ Rules:
 - Write each piece of text once. Do not repeat content in more than one section.
 - Never invent text: no headings, labels or items that are not written on the board.
 - Output only Markdown. No commentary, no code fences.
+- If the photo does not show the whole board clearly enough to read all of it (it is blurry, part of the board is covered, for example by a hand, or cut off by the edge of the photo, or there is no whiteboard in it), output only two lines: `# (unusable)`, then a short reason. A dim, tilted or glary photo is fine if all the writing can still be read.
 
 Format:
 - First line: `# ` followed by the board's title exactly as written. If the board has no title, write a short descriptive name followed by ` (untitled)`.

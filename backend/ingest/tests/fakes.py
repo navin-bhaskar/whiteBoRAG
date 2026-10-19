@@ -79,6 +79,9 @@ class InMemoryStore:
     def put_capture(self, rec: CaptureRecord) -> None:
         self.captures[rec.capture_id] = deepcopy(rec)
 
+    def delete_capture(self, capture_id: str) -> None:
+        self.captures.pop(capture_id, None)
+
 
 class FakeBlobs:
     def __init__(self, files: dict[str, bytes | str] | None = None) -> None:
@@ -94,6 +97,9 @@ class FakeBlobs:
 
     def put_text(self, key: str, text: str) -> None:
         self.files[key] = text
+
+    def delete(self, key: str) -> None:
+        self.files.pop(key, None)
 
 
 class FakeReader:

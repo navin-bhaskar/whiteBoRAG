@@ -36,7 +36,7 @@ def _handle_record(record: dict, deps: Deps, now: Callable[[], str]) -> bool:
             _log(capture_id=job.capture.capture_id, key=job.capture.s3_key, outcome="failed", error=repr(exc))
             ok = False
         else:
-            _log(outcome=outcome.pop("status"), **outcome)
+            _log(outcome=outcome.pop("status"), date=job.capture.date, key=job.capture.s3_key, **outcome)
     return ok
 
 

@@ -9,7 +9,7 @@ def test_load_default_config():
     assert cfg.max_tokens == 1500
     assert set(cfg.models) == {"nova-lite", "nova-pro", "nova-2-lite"}
     assert cfg.models["nova-2-lite"].profile == "global.amazon.nova-2-lite-v1:0"
-    assert cfg.prompt_path.name == "transcribe-v2.md"
+    assert cfg.prompt_path.name == "transcribe-v3.md"
 
 
 def test_eval_dir_points_at_dataset():
