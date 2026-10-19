@@ -105,11 +105,16 @@ class FakeBlobs:
 class FakeReader:
     """Returns canned replies and counts its calls."""
 
-    def __init__(self, transcript: Reply, normalized: Reply) -> None:
+    def __init__(self, transcript: Reply, normalized: Reply, checked: Reply = Reply("USABLE", False)) -> None:
         self.transcript = transcript
         self.normalized = normalized
+        self.checked = checked
         self.calls = 0
         self.prompts: list[str] = []
+
+    def check(self, image: bytes) -> Reply:
+        self.calls += 1
+        return self.checked
 
     def transcribe(self, image: bytes) -> Reply:
         self.calls += 1

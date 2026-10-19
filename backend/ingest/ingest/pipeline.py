@@ -4,8 +4,8 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Callable, Protocol
 
-from ingest import normalize, vectors
-from ingest.board import Todo, parse_board, unusable_reason
+from ingest import check, normalize, vectors
+from ingest.board import Todo, parse_board
 from ingest.events import Capture, Job
 from ingest.projects import canonical_key, match_project, summarize
 from ingest.store import CaptureRecord, Conflict, Link, Project, Store, with_retries
@@ -104,7 +104,7 @@ def remove_sightings(store: Store, project_key: str, capture_id: str, todo_ids: 
         with_retries(lambda: remove(todo_id))
 
 
-TRANSCRIBE_VERSION = "transcribe-v3"
+TRANSCRIBE_VERSION = "transcribe-v2"
 
 
 class Blobs(Protocol):
@@ -121,6 +121,7 @@ class Reply:
 
 
 class Reader(Protocol):
+    def check(self, image: bytes) -> Reply: ...
     def transcribe(self, image: bytes) -> Reply: ...
     def normalize(self, prompt: str) -> Reply: ...
 
@@ -193,13 +194,13 @@ def ingest_capture(deps: Deps, job: Job, now: Callable[[], str]) -> Outcome:
         image = deps.blobs.get_bytes(capture.s3_key)
         if image is None:
             return Outcome("skipped_missing_image", capture.capture_id)
+        if (reason := check.unusable_reason(deps.reader.check(image).text)) is not None:
+            delete_unusable(deps, capture, old)
+            return Outcome("deleted_unusable", capture.capture_id, reason=reason)
         reply = deps.reader.transcribe(image)
         if reply.text is None:
             raise RuntimeError(f"transcription returned no text for {capture.s3_key}")
         verbatim, truncated = normalize.strip_fence(reply.text), reply.truncated
-        if (reason := unusable_reason(verbatim)) is not None:
-            delete_unusable(deps, capture, old)
-            return Outcome("deleted_unusable", capture.capture_id, reason=reason)
         deps.blobs.put_text(capture.transcript_key, verbatim)
 
     # 2–3. Normalize spelling (reused likewise), then keep it only if the guard passes.
@@ -260,7 +261,11 @@ def ingest_capture(deps: Deps, job: Job, now: Callable[[], str]) -> Outcome:
             normalization_rejected=decision.rejected,
             truncated=truncated,
             ingested_at=now(),
-            prompt_versions={"transcribe": TRANSCRIBE_VERSION, "normalize": normalize.PROMPT_VERSION},
+            prompt_versions={
+                "check": check.PROMPT_VERSION,
+                "transcribe": TRANSCRIBE_VERSION,
+                "normalize": normalize.PROMPT_VERSION,
+            },
         )
     )
     return Outcome(

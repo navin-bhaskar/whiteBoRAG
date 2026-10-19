@@ -10,6 +10,7 @@ from botocore.config import Config
 from botocore.exceptions import ClientError
 
 from ingest import PROMPTS_DIR
+from ingest.check import PROMPT_VERSION as CHECK_VERSION
 from ingest.normalize import strip_fence
 from ingest.pipeline import TRANSCRIBE_VERSION, Deps, Reply
 from ingest.store import CaptureRecord, Conflict, Link, Project
@@ -213,16 +214,22 @@ class S3Blobs:
 
 
 class BedrockReader:
-    """Nova 2 Lite via Converse, with the same request shape as the eval harness Converser."""
+    """Nova via Converse, with the same request shape as the eval harness Converser.
 
-    def __init__(self, model_id: str) -> None:
+    Nova 2 Lite reads the board; the photo check needs Nova Pro, the only Nova model that spotted
+    a finger over the board in testing (2026-10-19).
+    """
+
+    def __init__(self, model_id: str, check_model_id: str) -> None:
         self.model_id = model_id
+        self.check_model_id = check_model_id
         self.client = boto3.client("bedrock-runtime", config=BEDROCK_CONFIG)
         self.transcribe_prompt = (PROMPTS_DIR / f"{TRANSCRIBE_VERSION}.md").read_text(encoding="utf-8")
+        self.check_prompt = (PROMPTS_DIR / f"{CHECK_VERSION}.md").read_text(encoding="utf-8")
 
-    def _converse(self, content: list[dict]) -> Reply:
+    def _converse(self, content: list[dict], model_id: str | None = None) -> Reply:
         resp = self.client.converse(
-            modelId=self.model_id,
+            modelId=model_id or self.model_id,
             messages=[{"role": "user", "content": content}],
             inferenceConfig={"maxTokens": MAX_TOKENS, "temperature": 0},
         )
@@ -231,6 +238,10 @@ class BedrockReader:
         except (KeyError, IndexError):
             text = None
         return Reply(text, resp.get("stopReason") == "max_tokens")
+
+    def check(self, image: bytes) -> Reply:
+        return self._converse([{"image": {"format": "jpeg", "source": {"bytes": image}}},
+                               {"text": self.check_prompt}], self.check_model_id)
 
     def transcribe(self, image: bytes) -> Reply:
         return self._converse([{"image": {"format": "jpeg", "source": {"bytes": image}}},
@@ -274,7 +285,7 @@ def build_deps() -> Deps:
     return Deps(
         store=DynamoStore(env["TABLE"]),
         blobs=S3Blobs(env["BUCKET"]),
-        reader=BedrockReader(env["NOVA_MODEL"]),
+        reader=BedrockReader(env["NOVA_MODEL"], env["CHECK_MODEL"]),
         embedder=TitanEmbedder(env["EMBED_MODEL"]),
         vectors=S3VectorIndex(env["VECTOR_BUCKET"], env["VECTOR_INDEX"]),
     )

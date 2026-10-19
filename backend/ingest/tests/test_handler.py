@@ -64,7 +64,7 @@ def test_missing_image_is_skipped(capsys):
 
 def test_unusable_logged_with_date_and_image(capsys):
     d = deps()
-    d.reader.transcript = Reply("# (unusable)\nToo blurry to read.", False)
+    d.reader.checked = Reply("UNUSABLE: Too blurry to read.", False)
     assert handle(sqs(("m1", GOOD)), d, now) == {"batchItemFailures": []}
     [line] = log_lines(capsys)
     assert (line["outcome"], line["date"], line["key"], line["reason"]) == (

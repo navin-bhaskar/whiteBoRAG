@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from ingest.board import Edge, Todo, parse_board, unusable_reason
+from ingest.board import Edge, Todo, parse_board
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -46,10 +46,3 @@ def test_ascii_arrows_and_annotation():
 def test_section_text_keeps_heading():
     board = parse_board(fixture("architecture.md"))
     assert board.sections[1].text.startswith("## TODO")
-
-
-def test_unusable_reason():
-    assert unusable_reason("# (unusable)\n\nToo blurry to read.\n") == "Too blurry to read."
-    assert unusable_reason("# (unusable)") == ""
-    assert unusable_reason(fixture("architecture.md")) is None
-    assert unusable_reason(fixture("crawlers.md")) is None
