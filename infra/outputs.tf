@@ -8,3 +8,13 @@ output "api_keys" {
   value       = { for device, key in aws_api_gateway_api_key.device : device => key.value }
   sensitive   = true
 }
+
+output "ingest_queue_url" {
+  description = "Queue S3 sends capture events to; the ingest Lambda consumes it."
+  value       = aws_sqs_queue.ingest.id
+}
+
+output "ingest_dlq_url" {
+  description = "Captures that failed ingestion 3 times; redrive with redrive_dlq.py."
+  value       = aws_sqs_queue.ingest_dlq.id
+}
