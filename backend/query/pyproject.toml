@@ -1,0 +1,17 @@
+[project]
+name = "query"
+version = "0.1.0"
+requires-python = "==3.13.*"
+dependencies = [
+    "boto3>=1.40",
+    "rapidfuzz>=3.9",
+    "tzdata>=2026.5",
+]
+
+[dependency-groups]
+dev = ["pytest"]
+
+# The query Lambda imports the ingest package; its tests reuse ingest's fakes.
+[tool.pytest.ini_options]
+pythonpath = [".", "../ingest", "../ingest/tests"]
+testpaths = ["tests"]
