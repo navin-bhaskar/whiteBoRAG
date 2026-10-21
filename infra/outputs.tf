@@ -9,6 +9,17 @@ output "api_keys" {
   sensitive   = true
 }
 
+output "query_url" {
+  description = "POST questions here from the local page."
+  value       = "${aws_api_gateway_stage.v1.invoke_url}/query"
+}
+
+output "query_api_key" {
+  description = "The query-local API key; read with: terraform output -raw query_api_key"
+  value       = aws_api_gateway_api_key.query.value
+  sensitive   = true
+}
+
 output "ingest_queue_url" {
   description = "Queue S3 sends capture events to; the ingest Lambda consumes it."
   value       = aws_sqs_queue.ingest.id

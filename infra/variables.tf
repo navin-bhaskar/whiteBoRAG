@@ -13,3 +13,9 @@ variable "alert_email" {
   description = "Email address that receives the ingest DLQ alarm. Confirm the subscription email AWS sends."
   type        = string
 }
+
+variable "query_origin" {
+  description = "The page origin allowed to call /query (CORS)."
+  type        = string
+  default     = "http://localhost:8000"
+}
