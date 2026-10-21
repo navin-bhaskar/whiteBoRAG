@@ -1,4 +1,4 @@
-from fakes import InMemoryStore
+from fakes import FakeEmbedder, InMemoryStore
 from query.evidence import (
     NOTHING,
     board_text,
@@ -6,10 +6,11 @@ from query.evidence import (
     edge_diff,
     latest_diagram,
     latest_project,
+    search_boards,
     todo_boards,
 )
 from query.understand import Intent
-from query_fakes import ARCH, Seeded, board
+from query_fakes import ARCH, FakeSearch, Seeded, board, hit
 
 P = "whiteborag"
 PLAIN = Intent("todos", None, None, None, None, None, False)
@@ -169,3 +170,65 @@ def test_latest_project_is_newest_link():
 def test_nothing_messages_take_the_project_name():
     assert NOTHING["diagram_latest"].format(name="whiteBORAG") == "whiteBORAG has no boards with a diagram yet."
     assert set(NOTHING) == {"todos", "diagram_latest", "diagram_history", "search", "empty"}
+
+
+def search(hits, project=None, section=None, date_from=None, date_to=None, before=None):
+    index = FakeSearch(hits)
+    boards = search_boards(
+        FakeEmbedder(), index, "where are the sensors?", project,
+        Intent("search", None, section, date_from, date_to, before, False),
+    )
+    return boards, index
+
+
+def test_filter_for_project_and_section():
+    _, index = search([], project=P, section="diagram")
+    assert index.last_filter == {"$and": [{"project": {"$eq": P}}, {"section": {"$eq": "diagram"}}]}
+    assert index.last_top_k == 8
+
+
+def test_single_condition_has_no_and():
+    _, index = search([], project=P)
+    assert index.last_filter == {"project": {"$eq": P}}
+    _, index = search([], section="todos")
+    assert index.last_filter == {"section": {"$eq": "todos"}}
+
+
+def test_no_filter_when_unknown():
+    _, index = search([])
+    assert (index.last_filter, index.last_top_k) == (None, 8)
+
+
+def test_date_filter_post_query():
+    hits = [hit(1, "a", date="2026-10-09"), hit(2, "b", date="2026-10-12"), hit(3, "c", date="2026-10-20")]
+    boards, index = search(hits, date_from="2026-10-10", date_to="2026-10-15")
+    assert index.last_top_k == 30 and index.last_filter is None
+    assert [b.date for b in boards] == ["2026-10-12"]
+
+
+def test_before_filter_post_query():
+    hits = [hit(1, "a", date="2026-10-19"), hit(2, "b", date="2026-10-12")]
+    boards, index = search(hits, before="2026-10-19T08:46:32Z")
+    assert index.last_top_k == 30 and [b.date for b in boards] == ["2026-10-12"]
+
+
+def test_grouped_and_capped():
+    order = [1, 2, 1, 3, 4, 5, 6, 2]
+    hits = [hit(n, f"text {i}", section="todos" if i == 0 else "notes") for i, n in enumerate(order)]
+    boards, _ = search(hits)
+    assert [b.capture_id[-4:] for b in boards] == ["0001", "0002", "0003", "0004", "0005"]
+    first = boards[0]
+    assert (first.text, first.section, first.project) == ("text 0\n\ntext 2", "todos", P)
+    assert (first.captured_at, first.date) == ("2026-10-15T08:46:32Z", "2026-10-15")
+    assert first.s3_key.endswith("_01M4Z7KFZ5KHCYV4BWHM8R0001.jpg")
+
+
+def test_untitled_board_has_no_project():
+    [b], _ = search([hit(1, "x", project="none")])
+    assert b.project is None
+
+
+def test_embeds_the_question():
+    embedder, index = FakeEmbedder(), FakeSearch([])
+    search_boards(embedder, index, "where are the sensors?", None, PLAIN)
+    assert embedder.texts == ["where are the sensors?"]

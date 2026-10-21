@@ -4,14 +4,21 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from itertools import islice
+from typing import Protocol
 
+from ingest.events import parse_key
 from ingest.normalize import NormalizationError, parse_response
-from ingest.pipeline import Blobs
+from ingest.pipeline import Blobs, Embedder
 from ingest.store import CaptureRecord, Link, Store
+from ingest.vectors import NO_PROJECT
 from query.understand import Intent
 
 MAX_TODO_BOARDS = 5
 MAX_HISTORY_BOARDS = 10
+SEARCH_TOP_K = 8
+# Dates are strings in the index, so date filters run on the results: fetch more to filter from.
+SEARCH_TOP_K_FILTERED = 30
+MAX_SEARCH_BOARDS = 5
 
 NOTHING = {
     "todos": "{name} has no boards with todos yet.",
@@ -20,6 +27,11 @@ NOTHING = {
     "search": "I couldn't find anything about that on your boards.",
     "empty": "There are no boards yet. Take a snap and ask again.",
 }
+
+
+class VectorSearch(Protocol):
+    def query(self, vector: list[float], top_k: int, filter: dict | None) -> list[dict]:
+        """Hits best first, each {"key", "metadata", "distance"}."""
 
 
 @dataclass(frozen=True)
@@ -144,3 +156,48 @@ def latest_project(store: Store) -> str | None:
     """The project of the most recent capture that has one."""
     newest = [links[-1] for p in store.list_projects() if (links := store.project_links(p.key))]
     return max(newest, key=lambda link: link.captured_at).project_key if newest else None
+
+
+def _search_filter(project: str | None, section: str | None) -> dict | None:
+    conditions = [{field: {"$eq": value}} for field, value in (("project", project), ("section", section)) if value]
+    if len(conditions) > 1:
+        return {"$and": conditions}
+    return conditions[0] if conditions else None
+
+
+def search_boards(embedder: Embedder, index: VectorSearch, question: str, project: str | None, intent: Intent) -> list[Board]:
+    """The boards whose sections best match the question, in rank order, each with its matched texts."""
+    dated = bool(intent.date_from or intent.date_to or intent.before)
+    before = _instant(intent.before) if intent.before else None
+    hits = index.query(
+        embedder.embed(question),
+        SEARCH_TOP_K_FILTERED if dated else SEARCH_TOP_K,
+        _search_filter(project, intent.section),
+    )
+    grouped: dict[str, tuple[dict, list[str]]] = {}
+    for h in hits:
+        meta = h["metadata"]
+        capture = parse_key(meta["s3_key"])
+        if capture is None or not (
+            (intent.date_from is None or meta["date"] >= intent.date_from)
+            and (intent.date_to is None or meta["date"] <= intent.date_to)
+            and (before is None or _instant(capture.captured_at) < before)
+        ):
+            continue
+        if meta["capture_id"] not in grouped:
+            if len(grouped) == MAX_SEARCH_BOARDS:
+                continue
+            grouped[meta["capture_id"]] = (meta, [])
+        grouped[meta["capture_id"]][1].append(meta["text"])
+    return [
+        Board(
+            capture_id=meta["capture_id"],
+            captured_at=parse_key(meta["s3_key"]).captured_at,
+            date=meta["date"],
+            s3_key=meta["s3_key"],
+            project=None if meta["project"] == NO_PROJECT else meta["project"],
+            section=meta["section"],
+            text="\n\n".join(texts),
+        )
+        for meta, texts in grouped.values()
+    ]

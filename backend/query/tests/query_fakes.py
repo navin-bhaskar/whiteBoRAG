@@ -39,3 +39,26 @@ class Seeded:
         assert out.status == "ingested", out
         self.ids.append(capture_id)
         return capture_id
+
+
+class FakeSearch:
+    """S3 Vectors query_vectors: returns its canned hits, best first, and records the last call."""
+
+    def __init__(self, hits: list[dict]) -> None:
+        self.hits = hits
+        self.last_top_k: int | None = None
+        self.last_filter: dict | None = None
+
+    def query(self, vector: list[float], top_k: int, filter: dict | None) -> list[dict]:
+        self.last_top_k, self.last_filter = top_k, filter
+        return self.hits[:top_k]
+
+
+def hit(n: int, text: str, section: str = "notes", date: str = "2026-10-15", project: str = "whiteborag") -> dict:
+    """A search hit for capture number n, shaped as ingest's vector records come back."""
+    capture_id = "01M4Z7KFZ5KHCYV4BWHM8R" + f"{n:04d}"
+    stamp = date.replace("-", "") + "T084632Z"
+    s3_key = f"captures/wb-cam-01/{date[:4]}/{date[5:7]}/{date[8:]}/{stamp}_{capture_id}.jpg"
+    metadata = {"project": project, "date": date, "section": section, "device": "wb-cam-01",
+                "capture_id": capture_id, "s3_key": s3_key, "text": text}
+    return {"key": f"{capture_id}#0", "metadata": metadata, "distance": 0.1 * n}
