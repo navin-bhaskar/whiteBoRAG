@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WhiteBorag</title>
+  <link rel="stylesheet" href="style.css">
+  <!-- config.js is yours (gitignored): copy config.example.js and fill in the API URL and key. -->
+  <script src="config.js"></script>
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <header>
+    <h1>WhiteBorag</h1>
+    <p>Ask about your whiteboards.</p>
+  </header>
+
+  <main id="turns" aria-live="polite"></main>
+
+  <form id="ask">
+    <label for="question" class="visually-hidden">Question</label>
+    <input id="question" name="question" type="text" maxlength="500" autocomplete="off" required
+           placeholder="What's the latest todo list?">
+    <button type="submit">Send</button>
+  </form>
+
+  <dialog id="lightbox" closedby="any" aria-label="Board photo">
+    <button type="button" class="nav prev" aria-label="Previous board">‹</button>
+    <figure>
+      <img alt="">
+      <div class="expired" hidden>link expired, ask again</div>
+      <figcaption>
+        <span class="when"></span>
+        <span class="chips"><span class="project"></span><span class="section"></span></span>
+        <span class="count"></span>
+      </figcaption>
+    </figure>
+    <button type="button" class="nav next" aria-label="Next board">›</button>
+    <button type="button" class="close" aria-label="Close">×</button>
+  </dialog>
+</body>
+</html>

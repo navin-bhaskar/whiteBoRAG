@@ -27,3 +27,14 @@ docs/superpowers/
 
 # OCR eval runs
 eval/runs/
+
+# Local query page settings (API URL and key)
+frontend/config.js
+
+# Capstone post (local only)
+docs/capstone-post.md
+
+# OCR eval data: snaps, ground truth and manifest (local only)
+eval/images/
+eval/ground_truth/
+eval/manifest.csv
