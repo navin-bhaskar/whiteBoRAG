@@ -22,6 +22,7 @@ MAX_SEARCH_BOARDS = 5
 
 NOTHING = {
     "todos": "{name} has no boards with todos yet.",
+    "board_latest": "{name} has no boards yet.",
     "diagram_latest": "{name} has no boards with a diagram yet.",
     "diagram_history": "{name} has no boards with a diagram yet.",
     "search": "I couldn't find anything about that on your boards.",
@@ -132,6 +133,13 @@ def todo_boards(store: Store, blobs: Blobs, project: str, intent: Intent) -> lis
         if len(boards) == limit:
             break
     return boards
+
+
+def latest_board(store: Store, blobs: Blobs, project: str, intent: Intent) -> list[Board]:
+    """The newest board whatever it holds, with its todos when it has any."""
+    for rec, text in _records(store, blobs, project, intent, lambda rec: True):
+        return [_board(rec, "board", text, todos=_todos_as_on(store, project, rec) if rec.todo_ids else None)]
+    return []
 
 
 def latest_diagram(store: Store, blobs: Blobs, project: str, intent: Intent) -> list[Board]:

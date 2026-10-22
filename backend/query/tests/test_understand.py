@@ -63,6 +63,11 @@ def test_follow_up_inherits_intent():
     assert (i.intent, i.before, i.follow_up) == ("diagram_latest", "2026-10-15T08:11:04Z", True)
 
 
+def test_parses_board_latest():
+    i = parse_intent('{"intent":"board_latest","project_name":"whiteborag","follow_up":false}', [])
+    assert (i.intent, i.project_name) == ("board_latest", "whiteborag")
+
+
 def test_follow_up_with_new_explicit_intent_keeps_it():
     i = parse_intent('{"intent":"todos","project_name":null,"follow_up":true}', [PREV])
     assert i.intent == "todos"

@@ -18,7 +18,7 @@ def todo_board(date: str = "2026-10-15") -> Board:
 
 
 def test_version_and_fallback():
-    assert PROMPT_VERSION == "answer-v1" and FALLBACK == "Here are the boards I found."
+    assert PROMPT_VERSION == "answer-v2" and FALLBACK == "Here are the boards I found."
 
 
 def test_boards_numbered_with_dates():
@@ -32,6 +32,11 @@ def test_todos_rendered_with_boxes_and_done_since():
     p = build_prompt("q", TODOS, WB, "named", [], [todo_board()])
     assert "☐ Test terraform code (done since, on 19 Oct 2026)" in p
     assert "☑ Deploy lambda" in p and "☑ Deploy lambda (done" not in p
+
+
+def test_boxes_only_for_the_todo_list():
+    p = build_prompt("q", TODOS, WB, "named", [], [todo_board()])
+    assert "Todos as on this board" in p and "Only the lines under \"Todos as on this board\" are todos" in p
 
 
 def test_diff_rendered():

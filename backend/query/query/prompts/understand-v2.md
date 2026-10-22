@@ -4,6 +4,7 @@ Reply with one JSON object with exactly these fields, and nothing else. No comme
 
 - `intent`: one of
   - `todos`: the todo list of a project ("what's left on X?", "todos from 15 October").
+  - `board_latest`: the most recent board of a project as a whole ("what's on the latest board?", "show me the last snap of X").
   - `diagram_latest`: the current diagram or architecture of a project.
   - `diagram_history`: how a project's diagram changed over time.
   - `search`: anything else, or when you are unsure.
@@ -23,6 +24,9 @@ Output: {"intent": "todos", "project_name": "garden bot", "section": null, "date
 
 Question: show me the gardenbot architecture
 Output: {"intent": "diagram_latest", "project_name": "gardenbot", "section": null, "date_from": null, "date_to": null, "before": null, "follow_up": false}
+
+Question: what's on the latest gardenbot board?
+Output: {"intent": "board_latest", "project_name": "gardenbot", "section": null, "date_from": null, "date_to": null, "before": null, "follow_up": false}
 
 Question: how did the GardenBot diagram change in September?
 Output: {"intent": "diagram_history", "project_name": "GardenBot", "section": null, "date_from": "2026-09-01", "date_to": "2026-09-30", "before": null, "follow_up": false}

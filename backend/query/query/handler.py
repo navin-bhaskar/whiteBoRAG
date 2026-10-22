@@ -53,6 +53,7 @@ def _gather(deps: Deps, question: str, intent: understand.Intent, project: str |
         return []
     find = {
         "todos": evidence.todo_boards,
+        "board_latest": evidence.latest_board,
         "diagram_latest": evidence.latest_diagram,
         "diagram_history": evidence.diagram_history,
     }[intent.intent]

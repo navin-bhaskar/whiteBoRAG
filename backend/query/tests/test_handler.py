@@ -147,6 +147,26 @@ def test_nothing_found_skips_answer_call():
     assert len(llm.prompts) == 1
 
 
+def test_latest_board_end_to_end():
+    s = Seeded()
+    s.add("20261015T084632Z")
+    newest = s.add("20261019T084632Z", board("whiteBORAG goals"))
+    llm = FakeLlm('{"intent":"board_latest","project_name":"whiteborag"}', "Goals.")
+    out = body(handle(ev("what's on the latest board?"), deps_with(s.store, s.blobs, llm), today))
+    assert out["answer"] == "Goals." and out["understood"]["intent"] == "board_latest"
+    [source] = out["sources"]
+    assert (source["capture_id"], source["section"]) == (newest, "board")
+    assert "whiteBORAG goals" in llm.prompts[1]
+
+
+def test_latest_board_nothing_found():
+    s = Seeded()
+    s.add("20261015T084632Z")
+    llm = FakeLlm('{"intent":"board_latest","project_name":"whiteborag","date_from":"2026-10-20","date_to":"2026-10-20"}')
+    out = body(handle(ev("latest board from 20 Oct?"), deps_with(s.store, s.blobs, llm), today))
+    assert out["answer"] == "whiteBORAG has no boards yet." and out["sources"] == []
+
+
 def test_empty_store():
     for reply in (TODOS, '{"intent":"diagram_history","project_name":null}', '{"intent":"search"}', "junk"):
         llm = FakeLlm(reply)

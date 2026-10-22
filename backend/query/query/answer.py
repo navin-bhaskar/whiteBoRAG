@@ -7,7 +7,7 @@ from query.evidence import Board
 from query.request import Turn
 from query.understand import Intent
 
-PROMPT_VERSION = "answer-v1"
+PROMPT_VERSION = "answer-v2"
 PROMPT = (Path(__file__).parent / "prompts" / f"{PROMPT_VERSION}.md").read_text(encoding="utf-8")
 FALLBACK = "Here are the boards I found."
 MAX_TOKENS = 800

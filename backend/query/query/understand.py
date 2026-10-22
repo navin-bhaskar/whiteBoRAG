@@ -11,9 +11,9 @@ from query.request import Turn
 
 log = logging.getLogger(__name__)
 
-PROMPT_VERSION = "understand-v1"
+PROMPT_VERSION = "understand-v2"
 PROMPT = (Path(__file__).parent / "prompts" / f"{PROMPT_VERSION}.md").read_text(encoding="utf-8")
-INTENTS = ("todos", "diagram_latest", "diagram_history", "search")
+INTENTS = ("todos", "board_latest", "diagram_latest", "diagram_history", "search")
 SECTIONS = ("todos", "diagram", "notes")
 
 

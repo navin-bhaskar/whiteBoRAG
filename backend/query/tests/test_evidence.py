@@ -4,6 +4,7 @@ from query.evidence import (
     board_text,
     diagram_history,
     edge_diff,
+    latest_board,
     latest_diagram,
     latest_project,
     search_boards,
@@ -92,6 +93,24 @@ def test_latest_diagram_skips_boards_without_edges():
     assert b.date == "2026-10-15"
 
 
+def test_latest_board_is_newest_board_of_any_kind():
+    s = Seeded()
+    s.add("20261015T084632Z")
+    newest = s.add("20261019T084632Z", board("whiteBORAG goals"))
+    [b] = latest_board(s.store, s.blobs, P, intent("board_latest"))
+    assert (b.capture_id, b.section, b.todos) == (newest, "board", None)
+    assert "whiteBORAG goals" in b.text
+
+
+def test_latest_board_carries_its_todos_and_honours_before():
+    s = Seeded()
+    s.add("20261015T084632Z", board(todos=["[ ] Deploy lambda"]))
+    newest = s.add("20261019T084632Z", board("whiteBORAG goals"))
+    before = s.store.get_capture(newest).captured_at
+    [b] = latest_board(s.store, s.blobs, P, intent("board_latest", before=before))
+    assert b.date == "2026-10-15" and [t["text"] for t in b.todos] == ["Deploy lambda"]
+
+
 def test_history_oldest_first_capped_at_10():
     s = Seeded()
     for day in range(1, 13):
@@ -169,7 +188,7 @@ def test_latest_project_is_newest_link():
 
 def test_nothing_messages_take_the_project_name():
     assert NOTHING["diagram_latest"].format(name="whiteBORAG") == "whiteBORAG has no boards with a diagram yet."
-    assert set(NOTHING) == {"todos", "diagram_latest", "diagram_history", "search", "empty"}
+    assert set(NOTHING) == {"todos", "board_latest", "diagram_latest", "diagram_history", "search", "empty"}
 
 
 def search(hits, project=None, section=None, date_from=None, date_to=None, before=None):
