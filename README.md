@@ -6,6 +6,10 @@ An ESP32-CAM points at a whiteboard. Wave a hand in front of its IR sensor and i
 
 Everything runs on AWS and is defined in Terraform. It is a demo project, built as a capstone for the Production track of Ed Donner's Udemy course.
 
+![The IR sensor module (top) and the ESP32-CAM (bottom), wired on a breadboard](docs/esp32-cam-hardware.jpg)
+
+The camera rig: the IR sensor at the top triggers a snap, and the ESP32-CAM below takes and uploads the photo.
+
 ## How it works
 
 ```
