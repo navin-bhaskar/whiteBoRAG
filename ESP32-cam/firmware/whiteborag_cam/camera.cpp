@@ -1,4 +1,4 @@
-// Ported from ESP32-cam/testing/snap_upload_s3, where these settings are verified.
+// Ported from an earlier test sketch, where these settings were verified on the board.
 #include "camera.h"
 
 #include <Arduino.h>

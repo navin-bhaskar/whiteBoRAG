@@ -1,6 +1,5 @@
 # Secrets
 secrets.h
-ESP32-cam/testing/**/config.h
 
 # Arduino build output
 build/
@@ -38,3 +37,6 @@ docs/capstone-post.md
 eval/images/
 eval/ground_truth/
 eval/manifest.csv
+
+# Demo videos (local only)
+*.mp4

@@ -1,6 +1,6 @@
 """Write whiteborag_cam/secrets.h from Terraform outputs and Wi-Fi credentials.
 
-    python ESP32-cam/firmware/tools/gen_secrets.py --wifi-from ESP32-cam/testing/snap_upload_s3/config.h
+    python ESP32-cam/firmware/tools/gen_secrets.py --wifi-from path/to/wifi.h
 
 API_BASE_URL and API_KEY come from `terraform -chdir=infra output -json`.
 Wi-Fi credentials come from --wifi-from (a header with WIFI_SSID and
