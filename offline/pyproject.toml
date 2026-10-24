@@ -1,0 +1,25 @@
+[project]
+name = "whiteborag-offline"
+version = "0.1.0"
+requires-python = "==3.13.*"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn>=0.30",
+    "httpx>=0.27",
+    "qdrant-client>=1.12",
+    "harness",
+    "rapidfuzz>=3.9",
+    "tzdata>=2026.5",
+]
+
+[dependency-groups]
+dev = ["pytest"]
+
+# The shared ingest and query packages have no build-system, so whiteborag_offline/__init__.py
+# puts them on sys.path; the eval harness is a real package.
+[tool.uv.sources]
+harness = { path = "../aws/eval/harness", editable = true }
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]

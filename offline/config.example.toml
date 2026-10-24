@@ -1,0 +1,21 @@
+# Copy to config.toml (git-ignored) and edit. Model names are the ids LM Studio lists
+# (run `uv run python -m whiteborag_offline.smoke` to see them).
+
+llm_base_url = "http://localhost:1234/v1"
+host = "0.0.0.0"   # reachable from the ESP32 on the LAN
+port = 8080
+max_tokens = 1500
+data_dir = "data"  # relative to offline/
+
+[models]
+check = "qwen3-vl-8b-instruct"
+transcribe = "qwen3-vl-8b-instruct"
+transcribe_mode = "raw"   # raw | hybrid-text | hybrid-vision
+ocr = ""                  # the OCR model for a hybrid transcribe
+ocr_prompt = ""           # that model's own plain-OCR prompt
+text = "meta-llama-3.1-8b-instruct"
+embed = "text-embedding-nomic-embed-text-v1.5"
+
+# Device key (sent as X-Device-Key) -> device id used in capture keys.
+[devices]
+"change-me-device-key" = "cam-01"
