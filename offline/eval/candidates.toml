@@ -1,0 +1,29 @@
+# OCR bake-off candidates. `model` is the id the model server lists. Fill these in as each one is installed.
+# kind: "ocr" for dedicated OCR models (also run in both hybrid modes), "vlm" for general vision models.
+
+base_url = "http://localhost:1234/v1"            # LM Studio
+restructure_text_model = "meta-llama-3.1-8b-instruct"   # hybrid-text: OCR text -> board Markdown, no image
+restructure_vision_model = "qwen3-vl-8b-instruct"       # hybrid-vision: OCR text as hints + the image
+
+[candidates.glm-ocr]
+model = "glm-ocr"
+kind = "ocr"
+ocr_prompt = "Text Recognition:"
+
+[candidates.paddleocr-vl]
+model = "paddleocr-vl"
+kind = "ocr"
+ocr_prompt = "OCR:"
+
+[candidates.qwen3-vl-8b]
+model = "qwen3-vl-8b-instruct"
+kind = "vlm"
+
+[candidates.deepseek-ocr]
+model = "deepseek-ocr"
+kind = "ocr"
+ocr_prompt = "Free OCR."
+
+[candidates.olmocr]
+model = "olmocr-2-7b"
+kind = "ocr"
