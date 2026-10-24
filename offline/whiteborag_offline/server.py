@@ -7,19 +7,29 @@ from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 
 import uvicorn
-from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.concurrency import run_in_threadpool
+from fastapi.responses import FileResponse, JSONResponse, Response
+from fastapi.staticfiles import StaticFiles
 
-from ingest.events import parse_key
+from ingest.events import CAPTURE_PREFIX, LOCAL_TZ, parse_key
 from ingest.ulid import new_ulid
+from query.handler import handle
 
+from whiteborag_offline import REPO_DIR
 from whiteborag_offline.config import Config, load_config
-from whiteborag_offline.deps import Runtime, open_runtime
+from whiteborag_offline.deps import QUERY_KEY_ID, Runtime, open_runtime, query_deps
 from whiteborag_offline.jobs import JobQueue
 from whiteborag_offline.worker import Worker
 
 MAX_PHOTO_BYTES = 5 * 1024 * 1024  # a UXGA JPEG from the ESP32-CAM is well under 1 MB
 JPEG_MAGIC = b"\xff\xd8"
+FRONTEND_DIR = REPO_DIR / "aws" / "frontend"
+CONFIG_JS = f'window.WHITEBORAG = {{apiUrl: location.origin, apiKey: "{QUERY_KEY_ID}"}};\n'
+
+
+def _today() -> str:
+    return datetime.now(LOCAL_TZ).strftime("%Y-%m-%d")
 
 
 def capture_key(device: str, at: datetime) -> tuple[str, str]:
@@ -71,6 +81,33 @@ def create_app(cfg: Config, rt: Runtime | None = None, start_worker: bool = True
     def health():
         return {"ok": True}
 
+    @app.post("/query")
+    async def post_query(request: Request):
+        # The shared handler takes an API Gateway proxy event and returns a proxy response.
+        event = {"body": (await request.body()).decode("utf-8", "replace"),
+                 "requestContext": {"identity": {"apiKeyId": QUERY_KEY_ID}}}
+        deps = query_deps(rt, str(request.base_url))
+        resp = await run_in_threadpool(handle, event, deps, _today)  # model calls are slow and blocking
+        return Response(resp["body"], status_code=resp["statusCode"], headers=resp["headers"])
+
+    @app.get("/photos/{key:path}")
+    def photo(key: str):
+        if not key.startswith(CAPTURE_PREFIX):
+            raise HTTPException(404)
+        try:
+            path = rt.blobs.path_for(key)
+        except ValueError:
+            raise HTTPException(404)
+        if not path.is_file():
+            raise HTTPException(404)
+        return FileResponse(path, media_type="image/jpeg")
+
+    @app.get("/config.js")
+    def config_js():
+        return Response(CONFIG_JS, media_type="application/javascript")
+
+    # Registered last so the routes above win; the chat page itself is the AWS one, unchanged.
+    app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")
     return app
 
 
