@@ -14,14 +14,14 @@ Power the board from a solid 5 V supply that can deliver at least 1 A. With a we
 
 ## Setup
 
-1. **Deploy the API** in `infra/` first. The firmware needs its URL and a device API key.
+1. **Deploy the API** in `aws/infra/` first. The firmware needs its URL and a device API key.
 2. **Generate `whiteborag_cam/secrets.h`.** This file is git-ignored and holds the Wi-Fi credentials, the API URL and the API key:
    ```
-   python ESP32-cam/firmware/tools/gen_secrets.py --wifi-from <header with WIFI_SSID / WIFI_PASSWORD defines>
+   python aws/ESP32-cam/firmware/tools/gen_secrets.py --wifi-from <header with WIFI_SSID / WIFI_PASSWORD defines>
    ```
    Instead of `--wifi-from`, you can set the `WIFI_SSID` and `WIFI_PASSWORD` environment variables. Or copy `secrets.example.h` to `secrets.h` and fill it in by hand.
 3. **Check `DEVICE_ID`** in `whiteborag_cam/config.h`. It must be one of the devices in the infra variable `devices`.
-4. `certs.h` (the Amazon root CAs used for TLS) is checked in. Regenerate it with `python ESP32-cam/firmware/tools/gen_certs.py` only if the roots change.
+4. `certs.h` (the Amazon root CAs used for TLS) is checked in. Regenerate it with `python aws/ESP32-cam/firmware/tools/gen_certs.py` only if the roots change.
 
 ## Build and flash
 
@@ -45,8 +45,8 @@ If an upload fails partway, the board needs another power-cycle into flash mode 
 The serial port runs at 115200 baud, and commands end with a newline. `tools/serial_cmd.py` sends one command without resetting the board:
 
 ```
-uv run ESP32-cam/firmware/tools/serial_cmd.py COM8 status --seconds 5
-uv run ESP32-cam/firmware/tools/serial_cmd.py COM8 --seconds 60   # listen only
+uv run aws/ESP32-cam/firmware/tools/serial_cmd.py COM8 status --seconds 5
+uv run aws/ESP32-cam/firmware/tools/serial_cmd.py COM8 --seconds 60   # listen only
 ```
 
 | Command                  | Action |

@@ -4,8 +4,8 @@
 # ///
 """Send one line to the ESP32-CAM and print what it says back.
 
-    uv run ESP32-cam/firmware/tools/serial_cmd.py COM5 snap --seconds 15
-    uv run ESP32-cam/firmware/tools/serial_cmd.py COM5 --seconds 60   # listen only
+    uv run aws/ESP32-cam/firmware/tools/serial_cmd.py COM5 snap --seconds 15
+    uv run aws/ESP32-cam/firmware/tools/serial_cmd.py COM5 --seconds 60   # listen only
 
 DTR and RTS are held low so opening the port neither resets the board nor
 puts it in the bootloader (the ESP32-CAM-MB wires them to EN and IO0).

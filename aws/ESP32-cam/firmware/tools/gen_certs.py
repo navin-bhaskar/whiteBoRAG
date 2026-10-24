@@ -1,6 +1,6 @@
 """Regenerate whiteborag_cam/certs.h, the TLS trust anchors for the firmware.
 
-    python ESP32-cam/firmware/tools/gen_certs.py
+    python aws/ESP32-cam/firmware/tools/gen_certs.py
 
 API Gateway (*.execute-api.ap-south-1) and S3 (*.s3.ap-south-1) both chain to
 Amazon Root CA 1, which is cross-signed by Starfield Services Root CA G2, so

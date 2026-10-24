@@ -25,18 +25,24 @@ docs/superpowers/
 .superpowers/
 
 # OCR eval runs
-eval/runs/
+aws/eval/runs/
 
 # Local query page settings (API URL and key)
-frontend/config.js
+aws/frontend/config.js
 
 # Capstone post (local only)
 docs/capstone-post.md
 
 # OCR eval data: snaps, ground truth and manifest (local only)
-eval/images/
-eval/ground_truth/
-eval/manifest.csv
+aws/eval/images/
+aws/eval/ground_truth/
+aws/eval/manifest.csv
 
 # Demo videos (local only)
 *.mp4
+
+# Offline version: runtime data, eval output, local config
+offline/data/
+offline/eval/runs/
+offline/eval/ocr-cache/
+offline/config.toml

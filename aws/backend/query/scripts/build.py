@@ -1,4 +1,5 @@
-"""Build infra/build/ingest.zip: the ingest package plus its dependencies for Lambda (arm64, Python 3.13).
+"""Build aws/infra/build/query.zip: the query package, the ingest package it imports, and their dependencies
+for Lambda (arm64, Python 3.13).
 
 Wheels target manylinux_2_28: the python3.13 runtime is Amazon Linux 2023 (glibc 2.34), and rapidfuzz
 no longer publishes manylinux2014 arm64 wheels.
@@ -6,7 +7,7 @@ no longer publishes manylinux2014 arm64 wheels.
 The zip is reproducible (sorted entries, fixed timestamps and permissions), so Terraform's
 filebase64sha256 changes only when the content does.
 
-Run: uv run --directory backend/ingest python scripts/build.py
+Run: uv run --directory aws/backend/query python scripts/build.py
 """
 
 import shutil
@@ -14,10 +15,11 @@ import subprocess
 import zipfile
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]          # backend/ingest
+ROOT = Path(__file__).resolve().parents[1]          # aws/backend/query
+INGEST = ROOT.parent / "ingest"                     # aws/backend/ingest, archived as ingest/…
 BUILD = ROOT / "build"
 PKG = BUILD / "pkg"
-OUT = ROOT.parents[1] / "infra" / "build" / "ingest.zip"
+OUT = ROOT.parents[1] / "infra" / "build" / "query.zip"
 FIXED_TIME = (1980, 1, 1, 0, 0, 0)
 SKIP_PARTS = {"__pycache__"}
 
@@ -44,7 +46,7 @@ def main() -> None:
         "--python-platform", "aarch64-manylinux_2_28", "--python-version", "3.13", "--only-binary", ":all:",
     )
 
-    entries = files_under(PKG, Path(".")) + files_under(ROOT, Path("ingest"))
+    entries = files_under(PKG, Path(".")) + files_under(ROOT, Path("query")) + files_under(INGEST, Path("ingest"))
     OUT.parent.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(OUT, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as zf:
         for path, name in sorted(entries, key=lambda e: e[1]):

@@ -1,7 +1,7 @@
 """End-to-end check of the deployed capture API (spec §6).
 
 Usage (from repo root):
-    uv run --project backend/presign python infra/scripts/smoke.py
+    uv run --project aws/backend/presign python aws/infra/scripts/smoke.py
 
 Uploads one tiny object under captures/<device>/..., verifies it, then
 permanently deletes that object version so the archive stays clean.
@@ -21,7 +21,7 @@ JPEG = b"\xff\xd8\xff\xd9"  # smallest valid JPEG markers (SOI + EOI)
 
 def tf_outputs():
     out = subprocess.run(
-        ["terraform", "-chdir=infra", "output", "-json"],
+        ["terraform", "-chdir=aws/infra", "output", "-json"],
         check=True, capture_output=True, text=True,
     ).stdout
     data = json.loads(out)

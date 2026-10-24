@@ -37,51 +37,51 @@ Query     chat UI ──► API Gateway (query API key) ──► query λ ─�
 - **Query:** the query Lambda works out what kind of question it is: todos, latest board, latest diagram, diagram history, or search.
   - It matches project names fuzzily and asks "did you mean…?" rather than guessing.
   - It answers only from the matching boards and returns them as sources with short-lived photo links.
-- **Chat UI:** a static page in `frontend/` that talks to the query API.
+- **Chat UI:** a static page in `aws/frontend/` that talks to the query API.
 
 ## Repository layout
 
 | Path | What's in it |
 |---|---|
-| `ESP32-cam/firmware/` | Camera firmware (Arduino). See its [README](ESP32-cam/firmware/README.md) for wiring and flashing. |
-| `backend/presign/` | Lambda that issues pre-signed upload URLs |
-| `backend/ingest/` | Ingest Lambda and its prompts |
-| `backend/query/` | Query Lambda and its prompts |
-| `frontend/` | Chat page |
-| `infra/` | Terraform for everything on AWS; `infra/bootstrap/` creates the state bucket |
-| `eval/harness/` | OCR eval harness used to pick the transcription model |
+| `aws/ESP32-cam/firmware/` | Camera firmware (Arduino). See its [README](aws/ESP32-cam/firmware/README.md) for wiring and flashing. |
+| `aws/backend/presign/` | Lambda that issues pre-signed upload URLs |
+| `aws/backend/ingest/` | Ingest Lambda and its prompts |
+| `aws/backend/query/` | Query Lambda and its prompts |
+| `aws/frontend/` | Chat page |
+| `aws/infra/` | Terraform for everything on AWS; `aws/infra/bootstrap/` creates the state bucket |
+| `aws/eval/harness/` | OCR eval harness used to pick the transcription model |
 
 ## Setup
 
 You need an AWS account with Bedrock access to Nova Pro, Nova 2 Lite and Titan Text Embeddings V2, plus Terraform, [uv](https://docs.astral.sh/uv/) and Python 3.13. Everything is deployed to `ap-south-1`.
 
-The bucket names are fixed in the Terraform (`esp32-cam-whiteborag` and `whiteborag-tfstate-<account id>`). If you deploy your own copy, change them in `infra/s3.tf`, `infra/versions.tf` and `infra/bootstrap/main.tf` first, because S3 bucket names are global.
+The bucket names are fixed in the Terraform (`esp32-cam-whiteborag` and `whiteborag-tfstate-<account id>`). If you deploy your own copy, change them in `aws/infra/s3.tf`, `aws/infra/versions.tf` and `aws/infra/bootstrap/main.tf` first, because S3 bucket names are global.
 
 1. **Create the state bucket:**
    ```
-   terraform -chdir=infra/bootstrap init
-   terraform -chdir=infra/bootstrap apply
+   terraform -chdir=aws/infra/bootstrap init
+   terraform -chdir=aws/infra/bootstrap apply
    ```
-2. **Configure:** copy `infra/terraform.example.tfvars` to `infra/terraform.tfvars` and set `alert_email`.
+2. **Configure:** copy `aws/infra/terraform.example.tfvars` to `aws/infra/terraform.tfvars` and set `alert_email`.
 3. **Build the Lambda packages:**
    ```
-   uv run --directory backend/ingest python scripts/build.py
-   uv run --directory backend/query python scripts/build.py
+   uv run --directory aws/backend/ingest python scripts/build.py
+   uv run --directory aws/backend/query python scripts/build.py
    ```
    The presign Lambda is zipped by Terraform itself.
 4. **Deploy:**
    ```
-   terraform -chdir=infra init
-   terraform -chdir=infra apply
+   terraform -chdir=aws/infra init
+   terraform -chdir=aws/infra apply
    ```
    Confirm the subscription email AWS sends to `alert_email`, or the DLQ alarm can't reach you.
 5. **Check the capture API:**
    ```
-   uv run --project backend/presign python infra/scripts/smoke.py
+   uv run --project aws/backend/presign python aws/infra/scripts/smoke.py
    ```
-6. **Flash the camera:** follow [`ESP32-cam/firmware/README.md`](ESP32-cam/firmware/README.md).
+6. **Flash the camera:** follow [`aws/ESP32-cam/firmware/README.md`](aws/ESP32-cam/firmware/README.md).
 7. **Run the chat page:**
-   - Copy `frontend/config.example.js` to `frontend/config.js` and fill in the values from `terraform -chdir=infra output -raw api_base_url` and `terraform -chdir=infra output -raw query_api_key`. `config.js` is git-ignored.
+   - Copy `aws/frontend/config.example.js` to `aws/frontend/config.js` and fill in the values from `terraform -chdir=aws/infra output -raw api_base_url` and `terraform -chdir=aws/infra output -raw query_api_key`. `config.js` is git-ignored.
    - Serve the page with `python -m http.server 8000 --directory frontend` and open http://localhost:8000. The API only accepts requests from that origin (`query_origin` in Terraform).
 
 ## Tests
@@ -89,10 +89,10 @@ The bucket names are fixed in the Terraform (`esp32-cam-whiteborag` and `whitebo
 Each Python package has its own suite:
 
 ```
-uv run --directory backend/presign pytest -q
-uv run --directory backend/ingest pytest -q
-uv run --directory backend/query pytest -q
-uv run --directory eval/harness pytest -q
+uv run --directory aws/backend/presign pytest -q
+uv run --directory aws/backend/ingest pytest -q
+uv run --directory aws/backend/query pytest -q
+uv run --directory aws/eval/harness pytest -q
 ```
 
 The eval harness's dataset tests need the eval snaps, which aren't in the repository.
@@ -117,10 +117,10 @@ Nova 2 Lite reads text and todos well but struggles with diagrams. These habits 
 
 ## Choosing the OCR model
 
-Before building ingest, the harness in `eval/harness/` compared 9 engines on 13 real snaps for under $1 in total: Textract, Rekognition, Nova Lite, Nova Pro, Nova 2 Lite, and hybrids of OCR plus a Nova model. Nova 2 Lite on the raw photo had the best word accuracy and costs about $0.0005 per snap. Run it with:
+Before building ingest, the harness in `aws/eval/harness/` compared 9 engines on 13 real snaps for under $1 in total: Textract, Rekognition, Nova Lite, Nova Pro, Nova 2 Lite, and hybrids of OCR plus a Nova model. Nova 2 Lite on the raw photo had the best word accuracy and costs about $0.0005 per snap. Run it with:
 
 ```
-uv run --directory eval/harness harness run --engines bedrock:nova-2-lite --variants raw
+uv run --directory aws/eval/harness harness run --engines bedrock:nova-2-lite --variants raw
 ```
 
 ## Credits
