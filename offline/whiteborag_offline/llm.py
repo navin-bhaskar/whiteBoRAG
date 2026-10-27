@@ -1,4 +1,4 @@
-"""An OpenAI-compatible chat and embeddings client: LM Studio, llama-server or anything alike."""
+"""An OpenAI-compatible chat and embeddings client: LM Studio, llama-server, OpenRouter or anything alike."""
 
 import base64
 import time
@@ -16,20 +16,28 @@ class Completion:
     text: str | None  # None: the model returned no text
     truncated: bool
     latency_s: float
+    cost_usd: float = 0.0  # what the server reports in usage.cost (OpenRouter); local servers report none
 
 
 class LlmClient:
     # Local models are slow and may be loaded on the first call, so the timeout is generous.
-    def __init__(self, base_url: str, timeout_s: float = 600, transport: httpx.BaseTransport | None = None) -> None:
-        self.http = httpx.Client(base_url=base_url.rstrip("/") + "/", timeout=timeout_s, transport=transport)
+    def __init__(self, base_url: str, timeout_s: float = 600, transport: httpx.BaseTransport | None = None,
+                 api_key: str | None = None) -> None:
+        headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
+        self.http = httpx.Client(base_url=base_url.rstrip("/") + "/", timeout=timeout_s, transport=transport,
+                                 headers=headers)
+        self._key = api_key
+
+    def _redact(self, text: str) -> str:
+        return text.replace(self._key, "<key>") if self._key else text
 
     def _post(self, path: str, body: dict) -> dict:
         try:
             resp = self.http.post(path, json=body)
         except httpx.HTTPError as exc:
-            raise LlmError(f"{path}: {exc!r}") from exc
+            raise LlmError(self._redact(f"{path}: {exc!r}")) from exc
         if resp.status_code != 200:
-            raise LlmError(f"{path}: HTTP {resp.status_code} {resp.text[:300]}")
+            raise LlmError(self._redact(f"{path}: HTTP {resp.status_code} {resp.text[:300]}"))
         return resp.json()
 
     def chat(self, model: str, prompt: str, image: bytes | None = None, max_tokens: int = 1500) -> Completion:
@@ -50,7 +58,8 @@ class LlmClient:
         except (KeyError, IndexError) as exc:
             raise LlmError(f"no choices in response: {str(data)[:300]}") from exc
         text = (choice.get("message") or {}).get("content") or None
-        return Completion(text, choice.get("finish_reason") == "length", latency)
+        cost = float((data.get("usage") or {}).get("cost") or 0.0)
+        return Completion(text, choice.get("finish_reason") == "length", latency, cost)
 
     def embed(self, model: str, text: str) -> list[float]:
         data = self._post("embeddings", {"model": model, "input": text})

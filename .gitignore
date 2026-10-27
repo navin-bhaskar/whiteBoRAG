@@ -46,3 +46,6 @@ offline/data/
 offline/eval/runs/
 offline/eval/ocr-cache/
 offline/config.toml
+
+# API keys (e.g. OPENROUTER_API_KEY)
+.env

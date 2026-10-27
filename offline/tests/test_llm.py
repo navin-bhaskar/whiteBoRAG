@@ -84,3 +84,51 @@ def test_embed_returns_vector():
     assert _client(handler).embed("emb", "text") == [0.1, 0.2]
     assert seen["url"] == "http://llm.test/v1/embeddings"
     assert seen["body"] == {"model": "emb", "input": "text"}
+
+
+def _keyed(handler, key: str | None = "k-123") -> LlmClient:
+    return LlmClient("http://llm.test/v1", transport=httpx.MockTransport(handler), api_key=key)
+
+
+def test_api_key_sent_as_bearer():
+    seen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["auth"] = request.headers.get("authorization")
+        return _reply("ok")
+
+    _keyed(handler).chat("m", "hi")
+    assert seen["auth"] == "Bearer k-123"
+
+
+def test_no_key_sends_no_auth_header():
+    seen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["auth"] = request.headers.get("authorization")
+        return _reply("ok")
+
+    _keyed(handler, key=None).chat("m", "hi")
+    assert seen["auth"] is None
+
+
+def test_error_message_never_contains_key():
+    client = _keyed(lambda request: httpx.Response(401, json={"error": "bad key k-123"}))
+    with pytest.raises(LlmError) as info:
+        client.chat("m", "hi")
+    assert "401" in str(info.value)
+    assert "k-123" not in str(info.value)
+
+
+def test_cost_read_from_usage():
+    body = {"choices": [{"message": {"content": "ok"}, "finish_reason": "stop"}], "usage": {"cost": 0.00042}}
+    assert _keyed(lambda request: httpx.Response(200, json=body)).chat("m", "hi").cost_usd == 0.00042
+
+
+def test_cost_missing_is_zero():
+    assert _keyed(lambda request: _reply("ok")).chat("m", "hi").cost_usd == 0.0
+
+
+def test_null_content_is_no_text():
+    body = {"choices": [{"message": {"content": None, "reasoning": "thinking"}, "finish_reason": "stop"}]}
+    assert _keyed(lambda request: httpx.Response(200, json=body)).chat("m", "hi").text is None
