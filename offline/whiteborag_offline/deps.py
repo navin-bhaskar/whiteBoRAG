@@ -63,7 +63,7 @@ def ingest_deps(rt: Runtime) -> IngestDeps:
     return IngestDeps(
         store=rt.store,
         blobs=rt.blobs,
-        reader=LocalReader(rt.client, rt.cfg.models, rt.cfg.max_tokens),
+        reader=LocalReader(rt.client, rt.cfg.models, rt.cfg.max_tokens, rt.store.list_projects),
         embedder=LocalEmbedder(rt.client, rt.cfg.models.embed),
         vectors=rt.vectors,
     )

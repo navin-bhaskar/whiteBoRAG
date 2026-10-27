@@ -10,7 +10,8 @@ from whiteborag_offline.deps import Runtime, open_runtime
 
 FIXTURES = REPO_DIR / "aws" / "backend" / "ingest" / "tests" / "fixtures"
 ARCH = (FIXTURES / "architecture.md").read_text(encoding="utf-8")
-NORMALIZED = "Project: whiteBORAG\n---\n" + ARCH.replace("White BORAH", "whiteBORAG").replace("transform", "terraform")
+# The first board of a project names it as `Name: rest`; the local reader picks projects from titles only.
+NORMALIZED = "Project: whiteBORAG\n---\n" + ARCH.replace("White BORAH ", "whiteBORAG: ").replace("transform", "terraform")
 KEY = "captures/cam-01/2026/10/15/20261015T084632Z_01M4Z7KFZ5KHCYV4BWHM8RH7BF.jpg"
 JPEG = b"\xff\xd8\xff\xe0fake-jpeg"
 

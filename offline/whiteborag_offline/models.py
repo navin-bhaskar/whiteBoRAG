@@ -1,10 +1,15 @@
 """Local model implementations of the shared interfaces: ingest's Reader and Embedder, query's Llm."""
 
+from collections.abc import Callable
+
 from harness.engines.hybrid import hint_prompt
 from ingest import PROMPTS_DIR as INGEST_PROMPTS
 from ingest.check import PROMPT_VERSION as CHECK_VERSION
-from ingest.normalize import strip_fence
+from ingest.board import parse_board
+from ingest.normalize import NormalizationError, parse_response, strip_fence
 from ingest.pipeline import TRANSCRIBE_VERSION, Reply
+from ingest.projects import match_project
+from ingest.store import Project
 
 from whiteborag_offline import PROMPTS_DIR
 from whiteborag_offline.config import Models
@@ -17,13 +22,28 @@ def _reply(text: str | None, truncated: bool) -> Reply:
     return Reply(strip_fence(text) if text is not None else None, truncated)
 
 
+def title_project(title: str, projects: list[Project]) -> str | None:
+    """The display name of the first known project that a one- or two-word window of the title fuzzy-matches."""
+    known = {p.key: [p.display_name, *p.aliases] for p in projects}
+    words = title.split()
+    windows = [" ".join(words[i:i + n]) for i in range(len(words)) for n in (2, 1) if i + n <= len(words)]
+    for window in windows:
+        if (key := match_project(window, known)) is not None:
+            return next(p.display_name for p in projects if p.key == key)
+    return None
+
+
 class LocalReader:
     """Check, transcribe and normalize with local models. A hybrid transcribe is two calls: the OCR model
     reads the photo, then the transcribe model writes board Markdown from that text (and the photo, for
-    hybrid-vision)."""
+    hybrid-vision).
 
-    def __init__(self, client: LlmClient, models: Models, max_tokens: int) -> None:
-        self.client, self.models, self.max_tokens = client, models, max_tokens
+    Normalize keeps the model's spelling fixes but not its `Project:` pick, which local models get wrong: the line
+    is rewritten from the title and the stored projects. New projects still come from a `Name: rest` title."""
+
+    def __init__(self, client: LlmClient, models: Models, max_tokens: int,
+                 projects: Callable[[], list[Project]]) -> None:
+        self.client, self.models, self.max_tokens, self.projects = client, models, max_tokens, projects
         self.check_prompt = (INGEST_PROMPTS / f"{CHECK_VERSION}.md").read_text(encoding="utf-8")
         self.transcribe_prompt = (INGEST_PROMPTS / f"{TRANSCRIBE_VERSION}.md").read_text(encoding="utf-8")
         self.restructure_prompt = (PROMPTS_DIR / f"{RESTRUCTURE_VERSION}.md").read_text(encoding="utf-8")
@@ -50,7 +70,13 @@ class LocalReader:
 
     def normalize(self, prompt: str) -> Reply:
         c = self._chat(self.models.text, prompt, None)
-        return _reply(c.text, c.truncated)
+        reply = _reply(c.text, c.truncated)
+        try:
+            _, body = parse_response(reply.text or "")
+        except NormalizationError:
+            return reply
+        project = title_project(parse_board(body).title, self.projects())
+        return Reply(f"Project: {project or 'none'}\n---\n{body}", reply.truncated)
 
 
 class LocalEmbedder:

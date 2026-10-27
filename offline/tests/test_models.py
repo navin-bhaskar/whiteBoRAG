@@ -3,6 +3,7 @@ import dataclasses
 import whiteborag_offline  # noqa: F401
 from harness.engines.hybrid import HINT_INTRO
 from ingest import PROMPTS_DIR as INGEST_PROMPTS
+from ingest.store import Project
 
 from fakes import FakeLlm
 from helpers import MODELS
@@ -16,8 +17,11 @@ TRANSCRIBE = (INGEST_PROMPTS / "transcribe-v2.md").read_text(encoding="utf-8")
 RESTRUCTURE = (PROMPTS_DIR / "restructure-v1.md").read_text(encoding="utf-8")
 
 
-def _reader(llm, **models):
-    return LocalReader(llm, dataclasses.replace(MODELS, **models), 1500)
+def _reader(llm, projects=(), **models):
+    return LocalReader(llm, dataclasses.replace(MODELS, **models), 1500, lambda: list(projects))
+
+
+WHITEBORAG = Project("whiteborag", "WhiteBoRAG", {"WhiteBoRAG": 2, "whiteBORAG": 1})
 
 
 def test_reader_check_uses_check_model_and_prompt():
@@ -67,6 +71,32 @@ def test_reader_normalize_uses_text_model_without_image():
     llm = FakeLlm("Project: X\n---\n# Board")
     _reader(llm).normalize("PROMPT")
     assert llm.calls == [{"model": "llama", "prompt": "PROMPT", "image": None, "max_tokens": 1500}]
+
+
+def _normalized_project(reply, projects=(WHITEBORAG,)):
+    return _reader(FakeLlm(reply), projects).normalize("PROMPT").text.splitlines()[0]
+
+
+def test_normalize_drops_a_project_the_title_does_not_name():
+    assert _normalized_project("Project: WhiteBoRAG\n---\n# Video uploaded") == "Project: none"
+
+
+def test_normalize_picks_a_known_project_from_a_misspelled_title():
+    assert _normalized_project("Project: none\n---\n# white BoRAG chunking") == "Project: WhiteBoRAG"
+    assert _normalized_project("Project: none\n---\n# whiteBORAG architecture") == "Project: WhiteBoRAG"
+
+
+def test_normalize_without_known_projects_picks_none():
+    assert _normalized_project("Project: Video\n---\n# Video uploaded", projects=()) == "Project: none"
+
+
+def test_normalize_keeps_the_rest_of_the_reply():
+    reply = _reader(FakeLlm("Project: none\n---\n# WhiteBoRAG todo\n- [ ] Ship"), [WHITEBORAG]).normalize("P")
+    assert reply.text == "Project: WhiteBoRAG\n---\n# WhiteBoRAG todo\n- [ ] Ship"
+
+
+def test_normalize_leaves_an_unparseable_reply_alone():
+    assert _reader(FakeLlm("no format here"), [WHITEBORAG]).normalize("P").text == "no format here"
 
 
 def test_embedder_returns_vector():
