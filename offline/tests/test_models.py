@@ -86,6 +86,12 @@ def test_normalize_picks_a_known_project_from_a_misspelled_title():
     assert _normalized_project("Project: none\n---\n# whiteBORAG architecture") == "Project: WhiteBoRAG"
 
 
+def test_normalize_matches_a_project_name_of_three_words():
+    home_lab = Project("homelabnetwork", "Home Lab Network", {"Home Lab Network": 1})
+    reply = "Project: none\n---\n# home lab netwrok questions"
+    assert _normalized_project(reply, projects=(WHITEBORAG, home_lab)) == "Project: Home Lab Network"
+
+
 def test_normalize_without_known_projects_picks_none():
     assert _normalized_project("Project: Video\n---\n# Video uploaded", projects=()) == "Project: none"
 

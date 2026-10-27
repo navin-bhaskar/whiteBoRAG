@@ -23,10 +23,14 @@ def _reply(text: str | None, truncated: bool) -> Reply:
 
 
 def title_project(title: str, projects: list[Project]) -> str | None:
-    """The display name of the first known project that a one- or two-word window of the title fuzzy-matches."""
+    """The display name of the first known project that a window of the title fuzzy-matches. Windows run from
+    one word up to the longest known name plus one (a name written as one word may be read as two), longest
+    first at each position."""
     known = {p.key: [p.display_name, *p.aliases] for p in projects}
+    longest = max((len(name.split()) for names in known.values() for name in names), default=1) + 1
     words = title.split()
-    windows = [" ".join(words[i:i + n]) for i in range(len(words)) for n in (2, 1) if i + n <= len(words)]
+    windows = [" ".join(words[i:i + n]) for i in range(len(words)) for n in range(longest, 0, -1)
+               if i + n <= len(words)]
     for window in windows:
         if (key := match_project(window, known)) is not None:
             return next(p.display_name for p in projects if p.key == key)
