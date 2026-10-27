@@ -14,8 +14,7 @@ class TouchDetector {
   TouchDetector(uint8_t pin, bool activeHigh, uint32_t minActiveMs, uint32_t releaseMs);
   void begin();
   bool poll(uint32_t now);  // true when a new touch starts; call every ~1 ms
-  bool touched() const { return held_; }
-  bool active() const;      // raw pin reading, for touchscan
+  bool active() const;      // raw pin reading, for status and touchscan
 
  private:
   uint8_t pin_;

@@ -3,10 +3,13 @@
 Records and results keep the S3 Vectors shapes, so the shared code reads them unchanged.
 """
 
+import threading
 import uuid
 from pathlib import Path
 
 from qdrant_client import QdrantClient, models
+
+from whiteborag_offline.store import _locked
 
 
 def _point_id(key: str) -> str:
@@ -35,9 +38,14 @@ def to_qdrant_filter(f: dict | None) -> models.Filter | None:
 
 
 class QdrantVectors:
+    """One embedded client shared by the ingest worker and request threads; local mode isn't thread-safe,
+    so every call holds a lock."""
+
     def __init__(self, path: Path | str, collection: str = "boards") -> None:
-        self.client = QdrantClient(location=":memory:") if str(path) == ":memory:" else QdrantClient(path=str(path))
+        self.client = (QdrantClient(location=":memory:", force_disable_check_same_thread=True) if str(path) == ":memory:"
+                       else QdrantClient(path=str(path), force_disable_check_same_thread=True))
         self.collection = collection
+        self.lock = threading.Lock()
 
     def close(self) -> None:
         self.client.close()
@@ -45,6 +53,7 @@ class QdrantVectors:
     def _exists(self) -> bool:
         return self.client.collection_exists(self.collection)
 
+    @_locked
     def put(self, records: list[dict]) -> None:
         if not records:
             return
@@ -58,10 +67,12 @@ class QdrantVectors:
             for r in records
         ])
 
+    @_locked
     def delete(self, keys: list[str]) -> None:
         if keys and self._exists():
             self.client.delete(self.collection, points_selector=models.PointIdsList(points=[_point_id(k) for k in keys]))
 
+    @_locked
     def get(self, keys: list[str]) -> list[dict]:
         if not keys or not self._exists():
             return []
@@ -74,6 +85,7 @@ class QdrantVectors:
             out.append({"key": key, "data": {"float32": list(p.vector)}, "metadata": meta})
         return out
 
+    @_locked
     def query(self, vector: list[float], top_k: int, filter: dict | None) -> list[dict]:
         if not self._exists():
             return []

@@ -83,7 +83,7 @@ The bucket names are fixed in the Terraform (`esp32-cam-whiteborag` and `whitebo
 6. **Flash the camera:** follow [`aws/ESP32-cam/firmware/README.md`](aws/ESP32-cam/firmware/README.md).
 7. **Run the chat page:**
    - Copy `aws/frontend/config.example.js` to `aws/frontend/config.js` and fill in the values from `terraform -chdir=aws/infra output -raw api_base_url` and `terraform -chdir=aws/infra output -raw query_api_key`. `config.js` is git-ignored.
-   - Serve the page with `python -m http.server 8000 --directory frontend` and open http://localhost:8000. The API only accepts requests from that origin (`query_origin` in Terraform).
+   - Serve the page with `python -m http.server 8000 --directory aws/frontend` and open http://localhost:8000. The API only accepts requests from that origin (`query_origin` in Terraform).
 
 ## Tests
 

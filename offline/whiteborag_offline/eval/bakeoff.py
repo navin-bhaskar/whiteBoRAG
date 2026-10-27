@@ -106,7 +106,10 @@ def fill_ocr_cache(cand: Candidate, client: LlmClient, cache: OcrCache, eval_dir
         if cache.get(cand.id, image) is not None:
             continue
         reply = client.chat(cand.model, cand.ocr_prompt or "Transcribe all text in this image.", image=image)
-        cache.put(cand.id, image, reply.text or "")
+        if not reply.text:  # caching "" would feed empty OCR to every later hybrid run
+            print(f"[{n}/{len(samples)}] {cand.id} {sample.image} returned no text; not cached")
+            continue
+        cache.put(cand.id, image, reply.text)
         done += 1
         print(f"[{n}/{len(samples)}] {cand.id} {sample.image} ocr {reply.latency_s:.1f}s")
     return done
