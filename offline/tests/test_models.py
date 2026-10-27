@@ -115,3 +115,10 @@ def test_text_ask_passes_max_tokens_and_keeps_fences():
     reply = LocalText(llm, "llama").ask("Q", 300)
     assert llm.calls[0]["max_tokens"] == 300
     assert reply.text == '```json\n{"a": 1}\n```'
+
+
+def test_normalize_keeps_model_pick_without_projects():
+    reply = "Project: WhiteBoRAG\n---\n# Video uploaded"
+    llm = FakeLlm(reply)
+    reader = LocalReader(llm, MODELS, 1500, None)
+    assert reader.normalize("PROMPT").text == reply

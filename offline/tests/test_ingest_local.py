@@ -3,7 +3,7 @@ from ingest.events import Job, parse_key
 from ingest.pipeline import ingest_capture
 
 from fakes import FakeLlm
-from helpers import JPEG, KEY, board_replies, runtime
+from helpers import ARCH, JPEG, KEY, board_replies, runtime
 from whiteborag_offline.deps import ingest_deps
 
 CAPTURE = parse_key(KEY)
@@ -49,3 +49,12 @@ def test_unusable_photo_moved_to_rejected(tmp_path):
     rest = KEY.removeprefix("captures/")
     assert not (tmp_path / "uploads" / rest).exists()
     assert (tmp_path / "rejected" / rest).read_bytes() == JPEG
+
+
+def test_model_project_pick_wiring(tmp_path):
+    """project_pick = "model": a title without a colon gets the model's pick, as on AWS."""
+    normalized = "Project: whiteBORAG\n---\n" + ARCH
+    rt = runtime(tmp_path, FakeLlm(board_replies(normalized=normalized)), project_pick="model")
+    rt.blobs.put_bytes(KEY, JPEG)
+    out = ingest_capture(ingest_deps(rt), Job(CAPTURE, reread=False), now)
+    assert out.project == "whiteborag"

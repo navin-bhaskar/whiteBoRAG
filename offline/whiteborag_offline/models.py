@@ -42,11 +42,12 @@ class LocalReader:
     reads the photo, then the transcribe model writes board Markdown from that text (and the photo, for
     hybrid-vision).
 
-    Normalize keeps the model's spelling fixes but not its `Project:` pick, which local models get wrong: the line
-    is rewritten from the title and the stored projects. New projects still come from a `Name: rest` title."""
+    With `projects`, normalize keeps the model's spelling fixes but not its `Project:` pick, which local models get
+    wrong: the line is rewritten from the title and the stored projects, and new projects come only from a
+    `Name: rest` title. Without it (None), the model's pick stands, as on AWS."""
 
     def __init__(self, client: LlmClient, models: Models, max_tokens: int,
-                 projects: Callable[[], list[Project]]) -> None:
+                 projects: Callable[[], list[Project]] | None) -> None:
         self.client, self.models, self.max_tokens, self.projects = client, models, max_tokens, projects
         self.check_prompt = (INGEST_PROMPTS / f"{CHECK_VERSION}.md").read_text(encoding="utf-8")
         self.transcribe_prompt = (INGEST_PROMPTS / f"{TRANSCRIBE_VERSION}.md").read_text(encoding="utf-8")
@@ -75,6 +76,8 @@ class LocalReader:
     def normalize(self, prompt: str) -> Reply:
         c = self._chat(self.models.text, prompt, None)
         reply = _reply(c.text, c.truncated)
+        if self.projects is None:
+            return reply
         try:
             _, body = parse_response(reply.text or "")
         except NormalizationError:

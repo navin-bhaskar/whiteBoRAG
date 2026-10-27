@@ -8,6 +8,7 @@ from query.handler import Deps as QueryDeps
 
 from whiteborag_offline.blobs import FileBlobs
 from whiteborag_offline.config import Config
+from whiteborag_offline.keys import api_key
 from whiteborag_offline.llm import LlmClient
 from whiteborag_offline.models import LocalEmbedder, LocalReader, LocalText
 from whiteborag_offline.store import SqliteStore
@@ -40,7 +41,7 @@ def open_runtime(cfg: Config, client: LlmClient | None = None, vectors_path: Pat
         store=SqliteStore(cfg.data_dir / DB_NAME),
         blobs=FileBlobs(cfg.data_dir),
         vectors=QdrantVectors(vectors_path or cfg.data_dir / "vectors"),
-        client=client or LlmClient(cfg.llm_base_url),
+        client=client or LlmClient(cfg.llm_base_url, api_key=api_key(cfg.api_key_env) if cfg.api_key_env else None),
     )
 
 
@@ -63,7 +64,8 @@ def ingest_deps(rt: Runtime) -> IngestDeps:
     return IngestDeps(
         store=rt.store,
         blobs=rt.blobs,
-        reader=LocalReader(rt.client, rt.cfg.models, rt.cfg.max_tokens, rt.store.list_projects),
+        reader=LocalReader(rt.client, rt.cfg.models, rt.cfg.max_tokens,
+                           rt.store.list_projects if rt.cfg.models.project_pick == "title" else None),
         embedder=LocalEmbedder(rt.client, rt.cfg.models.embed),
         vectors=rt.vectors,
     )

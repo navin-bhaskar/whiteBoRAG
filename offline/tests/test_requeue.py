@@ -16,3 +16,11 @@ def test_requeue_keys_and_failed(tmp_path, capsys):
 def test_requeue_rejects_a_non_capture_key(tmp_path):
     assert main(["transcripts/x.md"], tmp_path / "wb.db") == 2
     assert JobQueue(tmp_path / "wb.db").recent() == []
+
+
+def test_config_option_targets_its_db(tmp_path):
+    from whiteborag_offline import OFFLINE_DIR
+    text = (OFFLINE_DIR / "config.example.toml").read_text(encoding="utf-8").replace('data_dir = "data"', 'data_dir = "d"')
+    (tmp_path / "c.toml").write_text(text, encoding="utf-8")
+    assert main(["--config", str(tmp_path / "c.toml"), KEY]) == 0
+    assert [j["s3_key"] for j in JobQueue(tmp_path / "d" / "whiteborag.db").recent()] == [KEY]

@@ -15,6 +15,7 @@ ocr = ""                  # the OCR model for a hybrid transcribe
 ocr_prompt = ""           # that model's own plain-OCR prompt
 text = "qwen3-vl-8b-instruct"     # normalize + chat; one model fits 8 GB VRAM (the Llama 3.1 GGUF answered with fake tool-call JSON)
 embed = "text-embedding-nomic-embed-text-v1.5"
+project_pick = "title"   # title: fuzzy-match the title against stored projects; model: the model picks (AWS behaviour)
 
 # Device key (sent as X-Device-Key) -> device id used in capture keys.
 [devices]

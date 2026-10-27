@@ -6,6 +6,7 @@ Run: uv run --directory offline python -m whiteborag_offline.server
 import json
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
+from pathlib import Path
 
 import uvicorn
 from fastapi import FastAPI, HTTPException, Request
@@ -18,7 +19,7 @@ from ingest.ulid import new_ulid
 from query.handler import handle
 
 from whiteborag_offline import REPO_DIR
-from whiteborag_offline.config import Config, load_config
+from whiteborag_offline.config import DEFAULT_CONFIG, Config, load_config
 from whiteborag_offline.deps import QUERY_KEY_ID, Runtime, open_runtime, query_deps
 from whiteborag_offline.jobs import JobQueue
 from whiteborag_offline.worker import Worker
@@ -120,8 +121,8 @@ def create_app(cfg: Config, rt: Runtime | None = None, start_worker: bool = True
     return app
 
 
-def main() -> None:
-    cfg = load_config()
+def main(config_path: Path = DEFAULT_CONFIG, example: Path | None = None) -> None:
+    cfg = load_config(config_path, example) if example else load_config(config_path)
     uvicorn.run(create_app(cfg), host=cfg.host, port=cfg.port)
 
 

@@ -21,6 +21,7 @@ from whiteborag_offline.jobs import JobQueue
 def main(argv: list[str] | None = None, db_path: Path | None = None) -> int:
     parser = argparse.ArgumentParser(prog="requeue")
     parser.add_argument("--failed", action="store_true", help="put every failed job back in the queue")
+    parser.add_argument("--config", type=Path, help="the config whose data_dir holds the queue (default: offline)")
     parser.add_argument("keys", nargs="*", help="capture keys (captures/<device>/...) to ingest again")
     args = parser.parse_args(argv)
     if not args.failed and not args.keys:
@@ -29,7 +30,10 @@ def main(argv: list[str] | None = None, db_path: Path | None = None) -> int:
         print(f"not capture keys: {', '.join(bad)}", file=sys.stderr)
         return 2
 
-    queue = JobQueue(db_path or load_config().data_dir / DB_NAME)
+    cfg = load_config(args.config) if args.config else load_config()
+    if db_path is None:
+        cfg.data_dir.mkdir(parents=True, exist_ok=True)  # as the server does on start
+    queue = JobQueue(db_path or cfg.data_dir / DB_NAME)
     if args.failed:
         print(f"requeued {queue.requeue_failed()} failed job(s)")
     for key in args.keys:
