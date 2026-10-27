@@ -2,13 +2,13 @@
 
 Ask questions about your whiteboard.
 
-An ESP32-CAM points at a whiteboard. Wave a hand in front of its IR sensor and it photographs the board. Each photo is transcribed, filed under its project and indexed. Later you can ask things like "what's left to do on WhiteBoRAG?" or "where did we write about the vector store?" and get an answer, with dates and links back to the photos.
+An ESP32-CAM points at a whiteboard. Touch the pad next to it and it photographs the board. Each photo is transcribed, filed under its project and indexed. Later you can ask things like "what's left to do on WhiteBoRAG?" or "where did we write about the vector store?" and get an answer, with dates and links back to the photos.
 
-Everything runs on AWS and is defined in Terraform. It is a demo project, built as a capstone for the Production track of Ed Donner's Udemy course.
+Everything runs on AWS and is defined in Terraform. An [offline version](#offline-version) runs the same pipeline on a laptop with local models. It is a demo project, built as a capstone for the Production track of Ed Donner's Udemy course.
 
 ![The IR sensor module (top) and the ESP32-CAM (bottom), wired on a breadboard](docs/esp32-cam-hardware.jpg)
 
-The camera rig: the IR sensor at the top triggers a snap, and the ESP32-CAM below takes and uploads the photo.
+The first camera rig: an IR sensor at the top triggered a snap, and the ESP32-CAM below takes and uploads the photo. The IR sensor proved unreliable, so a capacitive touch pad on the same pin (IO14) now triggers it.
 
 ## How it works
 
@@ -50,6 +50,7 @@ Query     chat UI ──► API Gateway (query API key) ──► query λ ─�
 | `aws/frontend/` | Chat page |
 | `aws/infra/` | Terraform for everything on AWS; `aws/infra/bootstrap/` creates the state bucket |
 | `aws/eval/harness/` | OCR eval harness used to pick the transcription model |
+| `offline/` | The offline version: local server, local models, its own firmware. See its [README](offline/README.md). |
 
 ## Setup
 
@@ -122,6 +123,10 @@ Before building ingest, the harness in `aws/eval/harness/` compared 9 engines on
 ```
 uv run --directory aws/eval/harness harness run --engines bedrock:nova-2-lite --variants raw
 ```
+
+## Offline version
+
+`offline/` runs the whole pipeline on a laptop: LM Studio serves Qwen3-VL-8B for every model step, Qdrant and SQLite replace S3 Vectors and DynamoDB, and the camera POSTs photos straight to the laptop. The ingest and query code is the AWS code, unchanged. Setup, the local OCR bake-off and the differences (projects come only from `Name: rest` titles) are in [`offline/README.md`](offline/README.md).
 
 ## Credits
 
