@@ -19,23 +19,34 @@ class Completion:
     cost_usd: float = 0.0  # what the server reports in usage.cost (OpenRouter); local servers report none
 
 
+RETRY_STATUSES = {429, 500, 502, 503, 504}
+KEYED_RETRY_DELAYS_S = (5, 20)  # OpenRouter's upstream providers rate-limit (429) for a few seconds at a time
+
+
 class LlmClient:
     # Local models are slow and may be loaded on the first call, so the timeout is generous.
+    # A billed server (one with a key) is retried after a rate limit or server error; a local one fails at once.
     def __init__(self, base_url: str, timeout_s: float = 600, transport: httpx.BaseTransport | None = None,
-                 api_key: str | None = None) -> None:
+                 api_key: str | None = None, retry_delays_s: tuple[float, ...] | None = None) -> None:
         headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
         self.http = httpx.Client(base_url=base_url.rstrip("/") + "/", timeout=timeout_s, transport=transport,
                                  headers=headers)
         self._key = api_key
+        self.retry_delays_s = retry_delays_s if retry_delays_s is not None else (
+            KEYED_RETRY_DELAYS_S if api_key else ())
 
     def _redact(self, text: str) -> str:
         return text.replace(self._key, "<key>") if self._key else text
 
     def _post(self, path: str, body: dict) -> dict:
-        try:
-            resp = self.http.post(path, json=body)
-        except httpx.HTTPError as exc:
-            raise LlmError(self._redact(f"{path}: {exc!r}")) from exc
+        for delay in (*self.retry_delays_s, None):
+            try:
+                resp = self.http.post(path, json=body)
+            except httpx.HTTPError as exc:
+                raise LlmError(self._redact(f"{path}: {exc!r}")) from exc
+            if resp.status_code not in RETRY_STATUSES or delay is None:
+                break
+            time.sleep(delay)
         if resp.status_code != 200:
             raise LlmError(self._redact(f"{path}: HTTP {resp.status_code} {resp.text[:300]}"))
         return resp.json()

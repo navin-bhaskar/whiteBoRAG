@@ -140,3 +140,33 @@ def test_models_lists_another_catalogue():
         return httpx.Response(200, json={"data": [{"id": "amazon/titan-embed-text-v2"}]})
 
     assert _client(handler).models("embeddings/models") == ["amazon/titan-embed-text-v2"]
+
+
+def _flaky(status: int):
+    calls = []
+
+    def handler(request):
+        calls.append(1)
+        return httpx.Response(status, text="rate-limited") if len(calls) == 1 else _reply("board")
+
+    return handler, calls
+
+
+def test_retries_a_rate_limit():
+    handler, calls = _flaky(429)
+    client = LlmClient("http://llm.test/v1", transport=httpx.MockTransport(handler), retry_delays_s=(0,))
+    assert client.chat("vlm", "read it").text == "board"
+    assert len(calls) == 2
+
+
+def test_no_retry_on_a_bad_request():
+    handler, calls = _flaky(400)
+    client = LlmClient("http://llm.test/v1", transport=httpx.MockTransport(handler), retry_delays_s=(0,))
+    with pytest.raises(LlmError):
+        client.chat("vlm", "read it")
+    assert len(calls) == 1
+
+
+def test_retries_by_default_only_with_a_key():
+    assert LlmClient("http://llm.test/v1").retry_delays_s == ()
+    assert LlmClient("http://llm.test/v1", api_key="k").retry_delays_s == (5, 20)
