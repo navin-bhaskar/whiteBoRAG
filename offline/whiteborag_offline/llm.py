@@ -68,10 +68,11 @@ class LlmClient:
         except (KeyError, IndexError) as exc:
             raise LlmError(f"no embedding in response: {str(data)[:300]}") from exc
 
-    def models(self) -> list[str]:
+    def models(self, path: str = "models") -> list[str]:
+        """Model ids from a catalogue; OpenRouter lists embedding models apart, at embeddings/models."""
         try:
-            resp = self.http.get("models")
+            resp = self.http.get(path)
             resp.raise_for_status()
         except httpx.HTTPError as exc:
-            raise LlmError(f"models: {exc!r}") from exc
+            raise LlmError(f"{path}: {exc!r}") from exc
         return [m["id"] for m in resp.json().get("data", [])]

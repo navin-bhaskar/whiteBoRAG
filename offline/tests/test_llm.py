@@ -132,3 +132,11 @@ def test_cost_missing_is_zero():
 def test_null_content_is_no_text():
     body = {"choices": [{"message": {"content": None, "reasoning": "thinking"}, "finish_reason": "stop"}]}
     assert _keyed(lambda request: httpx.Response(200, json=body)).chat("m", "hi").text is None
+
+
+def test_models_lists_another_catalogue():
+    def handler(request):
+        assert request.url.path == "/v1/embeddings/models"
+        return httpx.Response(200, json={"data": [{"id": "amazon/titan-embed-text-v2"}]})
+
+    assert _client(handler).models("embeddings/models") == ["amazon/titan-embed-text-v2"]
