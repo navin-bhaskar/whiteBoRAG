@@ -1,14 +1,18 @@
 # WhiteBorag capture firmware
 
-This firmware runs on the AI-Thinker ESP32-CAM. When you wave a hand in front of the IR sensor, or send `snap` over serial, the camera takes a 1600x1200 JPEG with the flash and uploads it to S3. To upload, it first asks the capture API for a pre-signed URL. The result is shown on the flash LED. The camera also always serves a live view, so you can aim it at the board.
+This firmware runs on the AI-Thinker ESP32-CAM. When you touch the pad, or send `snap` over serial, the camera takes a 1600x1200 JPEG with the flash and uploads it to S3. To upload, it first asks the capture API for a pre-signed URL. The result is shown on the flash LED. The camera also always serves a live view, so you can aim it at the board.
 
 ## Wiring
 
-| IR sensor (FC-51) | ESP32-CAM |
-|-------------------|-----------|
-| OUT               | IO14      |
-| VCC               | 3.3V      |
-| GND               | GND       |
+| Touch module (TTP223 type) | ESP32-CAM |
+|----------------------------|-----------|
+| I/O (OUT)                  | IO14      |
+| VCC                        | 3.3V      |
+| GND                        | GND       |
+
+With its jumpers left open (the default), the module drives OUT HIGH while touched. If jumper A is closed, OUT goes LOW instead: set `TOUCH_ACTIVE_HIGH` to `0` in `config.h`. One touch takes one photo, and holding your finger on the pad still counts as one. The capture API is told the trigger was `button`.
+
+The first version used an FC-51 IR sensor on the same pin. It was marginal at 3.3 V and gave false triggers, so the touch pad replaced it.
 
 Power the board from a solid 5 V supply that can deliver at least 1 A. With a weak supply, the board resets (brownout) when Wi-Fi transmits.
 
@@ -51,9 +55,9 @@ uv run aws/ESP32-cam/firmware/tools/serial_cmd.py COM8 --seconds 60   # listen o
 
 | Command                  | Action |
 |--------------------------|--------|
-| `snap`                   | Capture and upload, same as an IR wave |
-| `status`                 | Wi-Fi, IP, memory, flash setting, IR state, last result |
-| `irscan`                 | Sample the IR pin for 5 s and report how long its LOW runs are (for checking for a false "hand" at idle) |
+| `snap`                   | Capture and upload, same as a touch |
+| `status`                 | Wi-Fi, IP, memory, flash setting, touch state, last result |
+| `touchscan`              | Sample the touch pin for 5 s and report how often it read as touched (untouched: expect 0 runs; tapping: one run per tap) |
 | `flash on` / `flash off` | Use the flash for captures (default on) |
 | `signals`                | Play every LED signal once |
 
@@ -85,5 +89,4 @@ Use it to line the camera up with the board. The view pauses for about a second 
 
 ## Known issues
 
-- **IR sensor false "hand":** the FC-51 is marginal at 3.3 V. On some setups its output sits LOW (meaning "hand") with nothing in front of it. Loose jumper wires made this much worse, and a breadboard helped. The firmware fires only when a hand *arrives*, so a sensor stuck on "hand" triggers at most once rather than repeatedly. Use `irscan` with nothing in front of the sensor: any LOW run of 20 ms or more means it is misbehaving. The lasting fix is hardware. Either power the sensor from 5 V with a voltage divider on OUT (for example 10k from OUT to IO14 and 20k from IO14 to GND), or use a sensor rated for 3.3 V.
 - **Stale build cache:** arduino-cli keeps a copy of the sketch in `%LOCALAPPDATA%\arduino\sketches\<hash>\sketch\`. If you delete a source file, it can stay in that copy and still be compiled. Delete it there too.
