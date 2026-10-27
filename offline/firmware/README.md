@@ -1,6 +1,23 @@
 # Offline camera firmware
 
-A copy of the [AWS firmware](../../aws/ESP32-cam/firmware/README.md) with one change: instead of asking API Gateway for a presigned URL and uploading to S3 over TLS, it POSTs the JPEG straight to the offline server on your laptop over plain HTTP on the LAN. Wiring, the IR trigger, the live view, the LED signals and the serial commands are the same, so the AWS README covers those.
+A copy of the [AWS firmware](../../aws/ESP32-cam/firmware/README.md) with two changes:
+
+- Instead of asking API Gateway for a presigned URL and uploading to S3 over TLS, it POSTs the JPEG straight to the offline server on your laptop over plain HTTP on the LAN.
+- A capacitive touch pad replaces the IR sensor, which was unreliable. One touch takes one photo; holding your finger on the pad still counts as one.
+
+The live view, the LED signals and the other serial commands are the same, so the AWS README covers those.
+
+## Touch sensor wiring
+
+| Touch module (TTP223 type) | ESP32-CAM |
+|---|---|
+| I/O (OUT) | IO14 |
+| VCC | 3.3V |
+| GND | GND |
+
+With its jumpers left open (the default), the module drives OUT HIGH while touched. If jumper A is closed, OUT goes LOW instead: set `TOUCH_ACTIVE_HIGH` to `0` in `config.h`.
+
+To check the wiring, send `touchscan` over serial. It samples the pad for 5 s. Untouched, it should report 0 runs; tapping it should give one run per tap.
 
 ## Setup
 

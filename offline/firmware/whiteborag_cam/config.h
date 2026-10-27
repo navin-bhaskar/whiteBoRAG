@@ -4,11 +4,12 @@
 
 #define DEVICE_ID "cam-01"  // shown at boot; the server names the device from its key
 
-// IR proximity sensor (FC-51 type), active LOW. At 3.3 V its output chatters
-// at idle (LOW runs of 5-10 ms); a hand holds it LOW continuously.
-#define IR_PIN            14
-#define IR_MIN_LOW_MS     20    // continuous LOW this long = a hand (idle chatter never is)
-#define IR_REARM_MS       200   // hand must be gone this long before the next wave counts
+// Capacitive touch module (TTP223 type) on the pin the IR sensor used.
+// Default jumpers (A and B open): output HIGH while touched, momentary.
+#define TOUCH_PIN           14
+#define TOUCH_ACTIVE_HIGH   1     // 0 if jumper A is closed (output LOW while touched)
+#define TOUCH_MIN_MS        30    // active this long = a touch (rejects glitches)
+#define TOUCH_RELEASE_MS    200   // pad released this long before the next touch counts
 #define COOLDOWN_MS       5000  // after every capture attempt, success or failure
 
 // Flash LED (GPIO 4): full brightness for captures, dimmed for feedback.

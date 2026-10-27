@@ -1,5 +1,5 @@
 // WhiteBorag offline capture firmware: a copy of aws/ESP32-cam/firmware that posts to the laptop.
-// One IR hand wave, or "snap" over serial, captures a UXGA JPEG with the flash, POSTs it to the
+// One touch on the pad, or "snap" over serial, captures a UXGA JPEG with the flash, POSTs it to the
 // offline server on the LAN and reports the result on the flash LED.
 // A live view (no flash) is always served for aiming the camera; see liveview.h.
 
@@ -14,7 +14,7 @@
 #include "net.h"
 #include "trigger.h"
 
-static WaveDetector irWaves(IR_PIN, IR_MIN_LOW_MS, IR_REARM_MS);
+static TouchDetector touch(TOUCH_PIN, TOUCH_ACTIVE_HIGH, TOUCH_MIN_MS, TOUCH_RELEASE_MS);
 static bool flashEnabled = FLASH_DEFAULT_ON;
 static uint32_t cooldownUntil = 0;
 static String lastResult = "none";
@@ -68,44 +68,38 @@ static void printStatus() {
                 up ? WiFi.RSSI() : 0, WiFi.localIP().toString().c_str());
   Serial.printf("[status] heap %lu free, PSRAM %lu free\n", (unsigned long)ESP.getFreeHeap(),
                 (unsigned long)ESP.getFreePsram());
-  Serial.printf("[status] flash %s, IR %s, last: %s\n", flashEnabled ? "on" : "off",
-                irWaves.handPresent(millis()) ? "hand" : "clear", lastResult.c_str());
+  Serial.printf("[status] flash %s, touch %s, last: %s\n", flashEnabled ? "on" : "off",
+                touch.active() ? "touched" : "clear", lastResult.c_str());
 }
 
-// Field tuning aid: sample the IR pin every 1 ms for 5 s and report how long
-// its LOW runs were. With nobody in front, every run must stay well under
-// IR_MIN_LOW_MS, or idle chatter will count as waves.
-static void irScan() {
+// Wiring check: sample the touch pin every 1 ms for 5 s and report how often it
+// read as touched. Run it once without touching (expect 0 runs) and once
+// tapping the pad (expect one run per tap).
+static void touchScan() {
   const uint32_t SCAN_MS = 5000;
-  const uint32_t EDGES[] = {5, 10, 20, 40, 80};  // histogram bucket upper bounds, ms
-  uint32_t buckets[6] = {};
-  uint32_t run = 0, longest = 0, lowTotal = 0;
-  Serial.println("[irscan] sampling 5 s...");
+  uint32_t runs = 0, run = 0, longest = 0, activeTotal = 0;
+  Serial.println("[touchscan] sampling 5 s...");
   for (uint32_t i = 0; i < SCAN_MS; i++) {
-    bool low = digitalRead(IR_PIN) == LOW;
-    if (low) {
+    bool on = touch.active();
+    if (on) {
       run++;
-      lowTotal++;
+      activeTotal++;
     }
-    if (run > 0 && (!low || i + 1 == SCAN_MS)) {
-      int b = 0;
-      while (b < 5 && run >= EDGES[b]) b++;
-      buckets[b]++;
+    if (run > 0 && (!on || i + 1 == SCAN_MS)) {
+      runs++;
       if (run > longest) longest = run;
       run = 0;
     }
     delay(1);
   }
-  Serial.printf("[irscan] LOW %lu%% of the time, longest LOW run %lu ms (waves need %d)\n",
-                (unsigned long)(lowTotal * 100 / SCAN_MS), (unsigned long)longest, IR_MIN_LOW_MS);
-  Serial.printf("[irscan] LOW runs: <5ms %lu, <10 %lu, <20 %lu, <40 %lu, <80 %lu, >=80 %lu\n",
-                (unsigned long)buckets[0], (unsigned long)buckets[1], (unsigned long)buckets[2],
-                (unsigned long)buckets[3], (unsigned long)buckets[4], (unsigned long)buckets[5]);
+  Serial.printf("[touchscan] touched %lu%% of the time, %lu runs, longest %lu ms (a touch needs %d)\n",
+                (unsigned long)(activeTotal * 100 / SCAN_MS), (unsigned long)runs, (unsigned long)longest,
+                TOUCH_MIN_MS);
 }
 
-// One wave starts a capture; handleTrigger drops waves during the cooldown.
-static void pollIr() {
-  if (irWaves.poll(millis())) handleTrigger("ir");
+// One touch starts a capture; handleTrigger drops touches during the cooldown.
+static void pollTouch() {
+  if (touch.poll(millis())) handleTrigger("touch");
 }
 
 static void handleSerial() {
@@ -118,8 +112,8 @@ static void handleSerial() {
     handleTrigger("serial");
   } else if (line == "status") {
     printStatus();
-  } else if (line == "irscan") {
-    irScan();
+  } else if (line == "touchscan") {
+    touchScan();
   } else if (line == "flash on" || line == "flash off") {
     flashEnabled = (line == "flash on");
     Serial.printf("[cam] flash %s\n", flashEnabled ? "on" : "off");
@@ -131,7 +125,7 @@ static void handleSerial() {
       delay(1000);
     }
   } else {
-    Serial.println("Commands: snap | status | irscan | flash on|off | signals");
+    Serial.println("Commands: snap | status | touchscan | flash on|off | signals");
   }
 }
 
@@ -146,16 +140,16 @@ void setup() {
     ESP.restart();
   }
   feedbackBegin();
-  irWaves.begin();
+  touch.begin();
   wifiBegin();
   liveViewBegin();
-  Serial.println("Commands: snap | status | irscan | flash on|off | signals");
+  Serial.println("Commands: snap | status | touchscan | flash on|off | signals");
 }
 
 void loop() {
   wifiWatchdog();
   liveViewPoll();
   handleSerial();
-  pollIr();
-  delay(1);  // 1 ms sampling: idle chatter must never look like a 20 ms LOW run
+  pollTouch();
+  delay(1);  // 1 ms sampling for the touch debounce
 }
