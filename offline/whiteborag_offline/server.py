@@ -3,6 +3,7 @@
 Run: uv run --directory offline python -m whiteborag_offline.server
 """
 
+import json
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 
@@ -59,6 +60,9 @@ def create_app(cfg: Config, rt: Runtime | None = None, start_worker: bool = True
         device = cfg.devices.get(request.headers.get("x-device-key", ""))
         if device is None:
             return JSONResponse({"error": "forbidden"}, status_code=403)
+        declared = request.headers.get("content-length", "")
+        if declared.isdigit() and int(declared) > MAX_PHOTO_BYTES:  # refuse before reading it all in
+            return JSONResponse({"error": "photo too large"}, status_code=400)
         body = await request.body()
         if not body.startswith(JPEG_MAGIC):
             return JSONResponse({"error": "body must be a JPEG"}, status_code=400)
@@ -69,7 +73,7 @@ def create_app(cfg: Config, rt: Runtime | None = None, start_worker: bool = True
             return JSONResponse({"error": f"device id {device!r} can't be used in a capture key"}, status_code=500)
         rt.blobs.put_bytes(key, body)
         job_id = queue.enqueue(key)
-        print(f'{{"captured": "{key}", "trigger": "{request.headers.get("x-trigger", "")}", "job": {job_id}}}',
+        print(json.dumps({"captured": key, "trigger": request.headers.get("x-trigger", ""), "job": job_id}),
               flush=True)
         return JSONResponse({"capture_id": capture_id, "key": key, "job_id": job_id}, status_code=201)
 
@@ -83,12 +87,17 @@ def create_app(cfg: Config, rt: Runtime | None = None, start_worker: bool = True
 
     @app.post("/query")
     async def post_query(request: Request):
+        # Same origin only: requiring JSON makes a cross-site browser send a preflight, and the CORS headers
+        # the shared handler adds are dropped below, so no other website can run a query or read the answer.
+        if request.headers.get("content-type", "").split(";")[0].strip().lower() != "application/json":
+            return JSONResponse({"error": "send the question as application/json"}, status_code=415)
         # The shared handler takes an API Gateway proxy event and returns a proxy response.
         event = {"body": (await request.body()).decode("utf-8", "replace"),
                  "requestContext": {"identity": {"apiKeyId": QUERY_KEY_ID}}}
         deps = query_deps(rt, str(request.base_url))
         resp = await run_in_threadpool(handle, event, deps, _today)  # model calls are slow and blocking
-        return Response(resp["body"], status_code=resp["statusCode"], headers=resp["headers"])
+        headers = {k: v for k, v in resp["headers"].items() if not k.lower().startswith("access-control-")}
+        return Response(resp["body"], status_code=resp["statusCode"], headers=headers)
 
     @app.get("/photos/{key:path}")
     def photo(key: str):

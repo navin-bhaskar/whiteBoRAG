@@ -98,3 +98,14 @@ def test_index_served(tmp_path):
     assert resp.status_code == 200
     assert "config.js" in resp.text
     assert script.status_code == 200
+
+
+def test_query_is_same_origin_only(tmp_path):
+    """Other websites must not read answers: no CORS grant, and a non-JSON body (no preflight) is refused."""
+    with TestClient(_app(tmp_path, ingested=False)) as client:
+        ok = _ask(client)
+        plain = client.post("/query", content=json.dumps({"question": "q", "history": []}),
+                            headers={"Content-Type": "text/plain"})
+    assert ok.status_code == 200
+    assert not any(h.lower().startswith("access-control-") for h in ok.headers)
+    assert plain.status_code == 415
