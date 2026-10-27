@@ -1,0 +1,33 @@
+# Bake-off candidates on OpenRouter: each vision model reads the eval photos straight to board Markdown (raw).
+# Run from offline/ (see openrouter/README.md):
+#   uv run python -m whiteborag_offline.eval.bakeoff --candidates ../openrouter/eval/candidates.toml run --engines local:nova-2-lite,...
+
+base_url = "https://openrouter.ai/api/v1"
+api_key_env = "OPENROUTER_API_KEY"
+budget_usd = 1.00   # the run stops once the ledger passes this; resume by running again with the same --run
+restructure_text_model = "amazon/nova-2-lite-v1"     # unused: only raw runs here
+restructure_vision_model = "amazon/nova-2-lite-v1"   # unused: only raw runs here
+
+[candidates.nova-2-lite]
+model = "amazon/nova-2-lite-v1"
+kind = "vlm"
+
+[candidates."claude-haiku-5.5"]
+model = "anthropic/claude-haiku-5.5"
+kind = "vlm"
+
+[candidates."gemini-3.5-flash-lite"]
+model = "google/gemini-3.5-flash-lite"
+kind = "vlm"
+
+[candidates.qwen3-vl-235b]
+model = "qwen/qwen3-vl-235b-a22b-instruct"
+kind = "vlm"
+
+[candidates."gpt-5.4-mini"]
+model = "openai/gpt-5.4-mini"
+kind = "vlm"
+
+[candidates."claude-sonnet-5.5"]
+model = "anthropic/claude-sonnet-5.5"
+kind = "vlm"

@@ -4,7 +4,7 @@ from harness.engines.hybrid import HINT_INTRO
 
 from fakes import FakeLlm
 from whiteborag_offline.eval.engines import LocalHybridText, LocalHybridVision, LocalRaw, OcrCache
-from whiteborag_offline.llm import LlmError
+from whiteborag_offline.llm import Completion, LlmError
 
 IMAGE = b"\xff\xd8image-bytes"
 
@@ -77,3 +77,8 @@ def test_ocr_cache_roundtrip_keyed_by_bytes(tmp_path):
     assert cache.get("glm", IMAGE) == "text"
     assert cache.get("glm", IMAGE + b"x") is None
     assert cache.get("other", IMAGE) is None
+
+
+def test_local_raw_reports_cost():
+    llm = FakeLlm(Completion("# Board", False, 1.0, 0.003))
+    assert LocalRaw(llm, "nova", "amazon/nova-2-lite-v1", "P").run(IMAGE).cost_usd == 0.003

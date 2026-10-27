@@ -1,4 +1,4 @@
-"""Harness engines for local models behind an OpenAI-compatible server. Every call costs $0."""
+"""Harness engines for models behind an OpenAI-compatible server: $0 on LM Studio, the billed cost on OpenRouter."""
 
 import hashlib
 from pathlib import Path
@@ -40,14 +40,15 @@ def _call(client: LlmClient, model: str, prompt: str, image: bytes | None) -> Co
 
 
 def _result(reply: Completion, model: str, latency_s: float) -> EngineResult:
-    return EngineResult(strip_fences(reply.text), {"model": model, "truncated": reply.truncated}, {}, 0.0, latency_s)
+    return EngineResult(strip_fences(reply.text), {"model": model, "truncated": reply.truncated}, {},
+                        reply.cost_usd, latency_s)
 
 
 class _Local:
     structured = True
 
     def worst_case_cost(self) -> float:
-        return 0.0
+        return 0.0  # no price list to estimate from; the ledger's budget cap stops a paid run instead
 
 
 class LocalRaw(_Local):

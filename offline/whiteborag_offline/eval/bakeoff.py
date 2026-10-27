@@ -4,6 +4,8 @@ Run from offline/:
     uv run python -m whiteborag_offline.eval.bakeoff ocr --candidate glm-ocr
     uv run python -m whiteborag_offline.eval.bakeoff run --run eval/runs/bakeoff --engines local:glm-ocr,local-hv:glm-ocr
     uv run python -m whiteborag_offline.eval.bakeoff score --run eval/runs/bakeoff
+
+--candidates points at another candidates.toml (default: offline's); runs and the OCR cache then default to its folder.
 """
 
 import argparse
@@ -26,11 +28,10 @@ from harness.runner import RunStats, run
 
 from whiteborag_offline import OFFLINE_DIR, PROMPTS_DIR
 from whiteborag_offline.eval.engines import LocalHybridText, LocalHybridVision, LocalRaw, OcrCache
+from whiteborag_offline.keys import api_key
 from whiteborag_offline.llm import LlmClient, LlmError
 
 CANDIDATES = OFFLINE_DIR / "eval" / "candidates.toml"
-RUNS_DIR = OFFLINE_DIR / "eval" / "runs"
-CACHE_DIR = OFFLINE_DIR / "eval" / "ocr-cache"
 BASELINE_CSV = EVAL_DIR / "runs" / "20261016T122626Z" / "scores.csv"
 BASELINE_HEADING = "## Baseline (AWS, Nova 2 Lite raw)"
 RESTRUCTURE_PROMPT = PROMPTS_DIR / "restructure-v1.md"
@@ -52,6 +53,8 @@ class Candidates:
     restructure_text_model: str
     restructure_vision_model: str
     by_id: dict[str, Candidate]
+    api_key_env: str | None = None  # a billed server's key, read with keys.api_key
+    budget_usd: float = 0.0         # the ledger's cap; a paid run stops (resumably) once its spend passes it
 
 
 def load_candidates(path: Path = CANDIDATES) -> Candidates:
@@ -61,17 +64,23 @@ def load_candidates(path: Path = CANDIDATES) -> Candidates:
         cid: Candidate(cid, c["model"], c["kind"], c.get("base_url") or None, c.get("ocr_prompt") or None)
         for cid, c in raw.get("candidates", {}).items()
     }
-    return Candidates(raw["base_url"], raw["restructure_text_model"], raw["restructure_vision_model"], by_id)
+    return Candidates(raw["base_url"], raw["restructure_text_model"], raw["restructure_vision_model"], by_id,
+                      raw.get("api_key_env") or None, float(raw.get("budget_usd", 0.0)))
+
+
+def _keyed_client(url: str, key: str | None) -> LlmClient:
+    return LlmClient(url, api_key=key)
 
 
 def build_engines(ids: list[str], cands: Candidates, cache: OcrCache,
-                  client_for: Callable[[str], LlmClient] = LlmClient) -> list:
+                  client_for: Callable[[str, str | None], LlmClient] = _keyed_client) -> list:
     clients: dict[str, LlmClient] = {}
+    key = api_key(cands.api_key_env) if cands.api_key_env else None
 
     def client(url: str | None) -> LlmClient:
         url = url or cands.base_url
         if url not in clients:
-            clients[url] = client_for(url)
+            clients[url] = client_for(url, key)
         return clients[url]
 
     transcribe = prompt_text(load_config())
@@ -146,7 +155,7 @@ def score(run_dir: Path, eval_dir: Path = EVAL_DIR, baseline_csv: Path = BASELIN
 
 
 def run_bakeoff(run_dir: Path, eval_dir: Path, images: str, engines: list,
-                baseline_csv: Path = BASELINE_CSV) -> RunStats:
+                baseline_csv: Path = BASELINE_CSV, budget_usd: float = 0.0) -> RunStats:
     samples = _samples(eval_dir, images)
     if not samples:
         raise ValueError(f"no images match {images!r}")
@@ -163,13 +172,15 @@ def run_bakeoff(run_dir: Path, eval_dir: Path, images: str, engines: list,
     )
     run_dir.mkdir(parents=True, exist_ok=True)
     meta_path.write_text(json.dumps(meta, indent=2), encoding="utf-8")
-    stats = run(run_dir, eval_dir / "images", samples, engines, VARIANTS, Ledger(run_dir / "ledger.jsonl", 0.0))
+    stats = run(run_dir, eval_dir / "images", samples, engines, VARIANTS, Ledger(run_dir / "ledger.jsonl", budget_usd))
     score(run_dir, eval_dir, baseline_csv)
     return stats
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="bakeoff")
+    parser.add_argument("--candidates", type=Path, default=CANDIDATES)
+    parser.add_argument("--cache-dir", type=Path, help="the plain-OCR cache (default: ocr-cache next to candidates)")
     sub = parser.add_subparsers(dest="cmd", required=True)
     p_ocr = sub.add_parser("ocr", help="fill the plain-OCR cache for a candidate")
     p_ocr.add_argument("--candidate", required=True)
@@ -182,23 +193,26 @@ def main(argv: list[str] | None = None) -> int:
     p_score.add_argument("--run", required=True)
     args = parser.parse_args(argv)
 
-    cands = load_candidates()
+    cands = load_candidates(args.candidates)
+    cache = OcrCache(args.cache_dir or args.candidates.parent / "ocr-cache")
     if args.cmd == "score":
         score(Path(args.run))
         return 0
     if args.cmd == "ocr":
         cand = cands.by_id[args.candidate]
         try:
-            n = fill_ocr_cache(cand, LlmClient(cand.base_url or cands.base_url), OcrCache(CACHE_DIR), EVAL_DIR,
+            key = api_key(cands.api_key_env) if cands.api_key_env else None
+            n = fill_ocr_cache(cand, _keyed_client(cand.base_url or cands.base_url, key), cache, EVAL_DIR,
                                args.images)
         except LlmError as exc:
             print(f"OCR failed: {exc}")
             return 1
         print(f"cached {n} new OCR results for {cand.id}")
         return 0
-    run_dir = Path(args.run) if args.run else RUNS_DIR / datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
-    engines = build_engines(args.engines.split(","), cands, OcrCache(CACHE_DIR))
-    stats = run_bakeoff(run_dir, EVAL_DIR, args.images, engines)
+    stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
+    run_dir = Path(args.run) if args.run else args.candidates.parent / "runs" / stamp
+    engines = build_engines(args.engines.split(","), cands, cache)
+    stats = run_bakeoff(run_dir, EVAL_DIR, args.images, engines, budget_usd=cands.budget_usd)
     print(f"done {stats.done}, skipped {stats.skipped}, failed {stats.failed}; summary in {run_dir / 'summary.md'}")
     return 1 if stats.failed else 0
 

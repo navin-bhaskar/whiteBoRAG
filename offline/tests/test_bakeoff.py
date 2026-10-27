@@ -1,7 +1,9 @@
 import csv
 import json
 
+import pytest
 from harness.engines import EngineResult
+from harness.ledger import BudgetExceeded
 
 from fakes import FakeLlm
 from whiteborag_offline.eval import bakeoff
@@ -109,6 +111,55 @@ def test_build_engines_by_id(tmp_path):
     cands = bakeoff.load_candidates(path)
     urls = []
     engines = bakeoff.build_engines(["local:glm", "local-hv:glm", "local-ht:glm"], cands,
-                                    OcrCache(tmp_path), client_for=lambda url: urls.append(url) or FakeLlm())
+                                    OcrCache(tmp_path), client_for=lambda url, key: urls.append(url) or FakeLlm())
     assert [e.id for e in engines] == ["local:glm", "local-hv:glm", "local-ht:glm"]
     assert set(urls) == {"http://localhost:1234/v1"}
+
+
+def _candidates_file(tmp_path, extra=""):
+    path = tmp_path / "cands" / "candidates.toml"
+    path.parent.mkdir()
+    path.write_text(
+        'base_url = "https://router.test/v1"\n' + extra +
+        'restructure_text_model = "t"\nrestructure_vision_model = "v"\n\n'
+        '[candidates.nova]\nmodel = "amazon/nova-2-lite-v1"\nkind = "vlm"\n', encoding="utf-8")
+    return path
+
+
+def test_candidates_path_option(tmp_path, monkeypatch):
+    path = _candidates_file(tmp_path)
+    seen = {}
+
+    def fake_run(run_dir, eval_dir, images, engines, budget_usd=0.0):
+        seen.update(run_dir=run_dir, engines=[e.id for e in engines])
+        return bakeoff.RunStats()
+
+    monkeypatch.setattr(bakeoff, "run_bakeoff", fake_run)
+    assert bakeoff.main(["--candidates", str(path), "run", "--engines", "local:nova"]) == 0
+    assert seen["engines"] == ["local:nova"]
+    assert seen["run_dir"].parent == path.parent / "runs"
+
+
+def test_api_key_env_builds_keyed_client(tmp_path, monkeypatch):
+    monkeypatch.setenv("ROUTER_KEY", "sk-test")
+    cands = bakeoff.load_candidates(_candidates_file(tmp_path, 'api_key_env = "ROUTER_KEY"\n'))
+    assert cands.api_key_env == "ROUTER_KEY"
+    seen = []
+    bakeoff.build_engines(["local:nova"], cands, OcrCache(tmp_path),
+                          client_for=lambda url, key: seen.append((url, key)) or FakeLlm())
+    assert seen == [("https://router.test/v1", "sk-test")]
+
+
+def test_budget_stops_a_paid_run(tmp_path):
+    class Paid(EchoEngine):
+        def run(self, image):
+            return EngineResult(GT, {}, {}, 0.01, 1.0)
+
+    class Second(Paid):
+        id = "local:second"
+
+    eval_dir = _eval_dir(tmp_path)
+    run_dir = tmp_path / "run"
+    with pytest.raises(BudgetExceeded):
+        bakeoff.run_bakeoff(run_dir, eval_dir, "*", [Paid(), Second()], _baseline(tmp_path), budget_usd=0.005)
+    assert bakeoff.load_candidates(_candidates_file(tmp_path, "budget_usd = 2.5\n")).budget_usd == 2.5
