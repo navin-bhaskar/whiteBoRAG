@@ -9,8 +9,8 @@ This folder holds only its config and data. The code is `offline/`'s, run with t
 | Step | Model |
 |---|---|
 | Photo check | `amazon/nova-pro-v1`, as on AWS |
-| Transcription | `amazon/nova-2-lite-v1` for now; the bake-off picks the final one |
-| Spelling pass and chat | `amazon/nova-2-lite-v1` for now |
+| Transcription | `anthropic/claude-sonnet-5.5`, the bake-off's best reader |
+| Spelling pass, project pick and chat | `anthropic/claude-haiku-5.5` |
 | Embeddings | `amazon/titan-embed-text-v2`, as on AWS |
 
 ## Setup
@@ -66,7 +66,15 @@ To start over, stop the server and delete `data/`.
 
 ## The model bake-off
 
-Results go here once the bake-off has run.
+Six vision models read the 13 AWS eval photos, and each one's project pick was checked; full results are in [`eval/RESULTS.md`](eval/RESULTS.md). Claude Sonnet 5.5 read best (word F1 0.982 against AWS Nova 2 Lite's 0.847). Claude Haiku 5.5 picks projects nearly as well as Sonnet at a tenth of the price, and like Sonnet it turns the misread "WhileBORAG local: goals" into "WhiteBoRAG local". Together they cost about 0.9 ¢ per photo.
+
+To rerun it, from `offline/` (it costs about $0.35):
+
+```
+uv run python -m whiteborag_offline.eval.bakeoff --candidates ../openrouter/eval/candidates.toml run --run ../openrouter/eval/runs/<name> --engines local:nova-2-lite,local:claude-sonnet-5.5
+```
+
+then, from `openrouter/`, `uv run python -m whiteborag_openrouter.eval.project_check --run eval/runs/<name>`.
 
 ## Tests
 

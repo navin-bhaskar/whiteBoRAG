@@ -11,11 +11,11 @@ data_dir = "data"  # relative to openrouter/
 
 [models]
 check = "amazon/nova-pro-v1"
-transcribe = "amazon/nova-2-lite-v1"   # placeholder until the bake-off picks one
+transcribe = "anthropic/claude-sonnet-5.5"   # eval/RESULTS.md: best reader
 transcribe_mode = "raw"   # raw | hybrid-text | hybrid-vision
 ocr = ""                  # the OCR model for a hybrid transcribe
 ocr_prompt = ""           # that model's own plain-OCR prompt
-text = "amazon/nova-2-lite-v1"         # normalize + chat
+text = "anthropic/claude-haiku-5.5"         # normalize (spelling + project pick) + chat
 embed = "amazon/titan-embed-text-v2"
 project_pick = "model"   # model: the model picks, as on AWS (a "Name: rest" title still wins); title: fuzzy-match only
 
