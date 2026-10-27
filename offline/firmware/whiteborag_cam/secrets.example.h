@@ -5,5 +5,5 @@
 
 #define WIFI_SSID     "your-wifi-ssid"
 #define WIFI_PASSWORD "your-wifi-password"
-#define SERVER_URL    "http://192.168.1.50:8080"  // the laptop running the offline server; no trailing slash
+#define SERVER_URL    "http://my-laptop.local:8080"  // the laptop running the server: its name + .local, or an IP; no trailing slash
 #define DEVICE_KEY    "change-me-device-key"

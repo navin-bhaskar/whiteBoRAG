@@ -28,3 +28,4 @@
 #define WIFI_CONNECT_TIMEOUT_MS 15000
 #define WIFI_RESTART_AFTER_MS   (5UL * 60 * 1000)
 #define POST_TIMEOUT_MS         30000  // the whole JPEG goes up in this one request
+#define MDNS_LOOKUP_MS          2000   // finding a SERVER_URL host named <laptop>.local

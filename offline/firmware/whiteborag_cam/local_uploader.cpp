@@ -1,6 +1,7 @@
 #include "local_uploader.h"
 
 #include <ArduinoJson.h>
+#include <ESPmDNS.h>
 #include <HTTPClient.h>
 #include <WiFiClient.h>
 
@@ -18,13 +19,37 @@ const char *postResultName(PostResult r) {
   return "?";
 }
 
+static IPAddress serverIp;  // the last address a .local SERVER_URL host resolved to
+
+// SERVER_URL with a .local host (http://<laptop>.local:8080) swapped for the laptop's current IP, looked up over
+// mDNS on the first POST and again on a retry, so the laptop can change IP without a reflash. Other URLs pass
+// through. Empty if the name has never resolved.
+static String serverUrl(bool lookUpAgain) {
+  String url = SERVER_URL;
+  int hostStart = url.indexOf("://") + 3;
+  int hostEnd = hostStart;
+  while (hostEnd < (int)url.length() && url[hostEnd] != ':' && url[hostEnd] != '/') hostEnd++;
+  String host = url.substring(hostStart, hostEnd);
+  if (!host.endsWith(".local")) return url;
+
+  if (lookUpAgain || serverIp == IPAddress()) {
+    IPAddress ip = MDNS.queryHost(host.substring(0, host.length() - 6), MDNS_LOOKUP_MS);
+    Serial.printf("[post] %s -> %s\n", host.c_str(), ip == IPAddress() ? "not found" : ip.toString().c_str());
+    if (ip != IPAddress()) serverIp = ip;  // a failed lookup keeps the last good address
+  }
+  if (serverIp == IPAddress()) return "";
+  return url.substring(0, hostStart) + serverIp.toString() + url.substring(hostEnd);
+}
+
 // One POST over plain HTTP on the LAN. Returns the HTTP status, or a negative HTTPClient error code.
-static int postOnce(const char *trigger, const uint8_t *data, size_t len, String &body) {
+static int postOnce(const char *trigger, const uint8_t *data, size_t len, String &body, bool lookUpAgain) {
+  String url = serverUrl(lookUpAgain);
+  if (url.isEmpty()) return HTTPC_ERROR_CONNECTION_REFUSED;
   WiFiClient client;
   HTTPClient http;
   http.setConnectTimeout(POST_TIMEOUT_MS);
   http.setTimeout(POST_TIMEOUT_MS);
-  if (!http.begin(client, String(SERVER_URL) + "/captures")) return HTTPC_ERROR_CONNECTION_REFUSED;
+  if (!http.begin(client, url + "/captures")) return HTTPC_ERROR_CONNECTION_REFUSED;
 
   http.addHeader("Content-Type", "image/jpeg");
   http.addHeader("X-Device-Key", DEVICE_KEY);
@@ -39,7 +64,7 @@ PostResult postCapture(const char *trigger, const uint8_t *data, size_t len, Str
   for (int attempt = 0;; attempt++) {
     String body;
     uint32_t t0 = millis();
-    int code = postOnce(trigger, data, len, body);
+    int code = postOnce(trigger, data, len, body, attempt > 0);
     Serial.printf("[post] POST /captures (%u bytes) -> %d in %lu ms\n", (unsigned)len, code,
                   (unsigned long)(millis() - t0));
 
