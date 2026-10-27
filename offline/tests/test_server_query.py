@@ -78,6 +78,8 @@ def test_photos_serves_capture_and_404s_others(tmp_path):
         assert client.get("/photos/transcripts/cam-01/2026/10/15/x.md").status_code == 404
         assert client.get("/photos/captures/cam-01/missing.jpg").status_code == 404
         assert client.get("/photos/captures/..%2F..%2Fwhiteborag.db").status_code == 404
+        for outside in ("captures//Windows/win.ini", "captures/C:/Windows/win.ini", "captures/C%3A/Windows/win.ini"):
+            assert client.get(f"/photos/{outside}").status_code == 404
 
 
 def test_config_js_points_at_origin(tmp_path):

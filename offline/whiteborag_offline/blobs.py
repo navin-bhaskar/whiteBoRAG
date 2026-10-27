@@ -15,16 +15,22 @@ class FileBlobs:
         self.data_dir = data_dir
 
     def _split(self, key: str) -> tuple[str, PurePosixPath]:
-        path = PurePosixPath(key)
-        if "\\" in key or path.is_absolute() or ".." in path.parts or not path.parts:
+        # Plain relative segments only: an empty one ("//"), a drive ("C:") or a backslash would let the
+        # joined path escape data_dir on Windows.
+        parts = key.split("/")
+        if "\\" in key or any(p in ("", ".", "..") or ":" in p for p in parts):
             raise ValueError(f"bad blob key: {key!r}")
         if key.startswith(CAPTURE_PREFIX):
             return "uploads", PurePosixPath(key.removeprefix(CAPTURE_PREFIX))
-        return "derived", path
+        return "derived", PurePosixPath(key)
 
     def path_for(self, key: str) -> Path:
         area, rest = self._split(key)
-        return self.data_dir / area / rest
+        base = (self.data_dir / area).resolve()
+        path = (base / rest).resolve()
+        if not path.is_relative_to(base):
+            raise ValueError(f"bad blob key: {key!r}")
+        return path
 
     def get_bytes(self, key: str) -> bytes | None:
         path = self.path_for(key)
@@ -46,7 +52,7 @@ class FileBlobs:
 
     def delete(self, key: str) -> None:
         area, rest = self._split(key)
-        path = self.data_dir / area / rest
+        path = self.path_for(key)
         if not path.exists():
             return
         if area == "uploads":

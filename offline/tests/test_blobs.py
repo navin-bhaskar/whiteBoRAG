@@ -45,7 +45,11 @@ def test_missing_returns_none_and_delete_is_noop(tmp_path):
     blobs.delete("transcripts/none.md")
 
 
-@pytest.mark.parametrize("key", ["../escape.txt", "/abs/path", "captures/../../x.jpg", "transcripts/a\\..\\..\\b"])
+@pytest.mark.parametrize("key", [
+    "../escape.txt", "/abs/path", "captures/../../x.jpg", "transcripts/a\\..\\..\\b",
+    # the part after captures/ must not be absolute or drive-qualified either
+    "captures//Windows/win.ini", "captures/C:/Windows/win.ini", "C:/Windows/win.ini", "transcripts//x.md",
+])
 def test_rejects_path_traversal(tmp_path, key):
     with pytest.raises(ValueError):
         FileBlobs(tmp_path).path_for(key)
