@@ -57,6 +57,12 @@ class JobQueue:
             return self.conn.execute("UPDATE jobs SET status = 'queued', updated_at = ? WHERE status = 'running'",
                                      (_now(),)).rowcount
 
+    def requeue_failed(self) -> int:
+        """Failed jobs (the model server was down, say) go back in the queue."""
+        with self.lock:
+            return self.conn.execute("UPDATE jobs SET status = 'queued', error = NULL, updated_at = ? "
+                                     "WHERE status = 'failed'", (_now(),)).rowcount
+
     def recent(self, limit: int = 50) -> list[dict]:
         with self.lock:
             rows = self.conn.execute(

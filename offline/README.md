@@ -68,6 +68,15 @@ Each capture takes about a minute to ingest. Windows asks whether Python may acc
 
 Model calls are heavy. If memory runs short, unload models in LM Studio that aren't in `config.toml`.
 
+**Retrying and re-ingesting.** If LM Studio was off or a model wasn't loaded, jobs fail and stay failed. Once it's back, from `offline/`:
+
+```
+uv run python -m whiteborag_offline.requeue --failed
+uv run python -m whiteborag_offline.requeue captures/cam-01/2026/10/27/<stamp>_<id>.jpg
+```
+
+The first puts every failed job back in the queue; the second ingests one capture again (the key is shown in `/jobs`). The running server picks them up. Ingesting again reuses the stored transcripts, so a hand-corrected title takes effect without re-reading the photo.
+
 ## The camera
 
 Flash the [offline firmware](firmware/README.md). It POSTs photos straight to this server. A capacitive touch pad triggers a capture: one touch, one photo.
@@ -83,7 +92,7 @@ Flash the [offline firmware](firmware/README.md). It POSTs photos straight to th
 ## Known limits
 
 - **Misreads stay in.** The spelling pass rarely fixes a misread word ("gd rant" for "qdrant"), so the wrong word can appear in answers and miss in search. Write clearly, with good light.
-- **A misread project name makes a new project.** If the first board's title is misread ("WhileBORAG"), so is the project name. Fix it by correcting the title in `data/derived/transcripts/.../<capture>.md` and `.normalized.md` and ingesting the capture again.
+- **A misread project name makes a new project.** If the first board's title is misread ("WhileBORAG"), so is the project name. Fix it by correcting the title in both `data/derived/transcripts/.../<capture>.md` and `.normalized.md`, then requeue that capture (see Running).
 - **"What are the goals?" is read as a todo question.** Questions about a project's goals or plans go to the todo list. Ask about the board instead: "what does the goals board say?"
 
 ## Where the data lives

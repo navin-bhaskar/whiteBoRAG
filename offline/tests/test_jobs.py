@@ -28,3 +28,14 @@ def test_requeue_running(tmp_path):
     q.claim()
     assert q.requeue_running() == 1
     assert q.claim() == (job_id, "k1")
+
+
+def test_requeue_failed_clears_the_error(tmp_path):
+    q = JobQueue(tmp_path / "wb.db")
+    done, failed = q.enqueue("k1"), q.enqueue("k2")
+    q.claim(), q.claim()
+    q.finish(done, {})
+    q.fail(failed, "LlmError('down')")
+    assert q.requeue_failed() == 1
+    assert q.claim() == (failed, "k2")
+    assert {j["id"]: j["error"] for j in q.recent()}[failed] is None
