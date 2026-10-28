@@ -41,17 +41,28 @@ class Seeded:
         return capture_id
 
 
+def _matches(metadata: dict, filter: dict | None) -> bool:
+    if filter is None:
+        return True
+    if "$and" in filter:
+        return all(_matches(metadata, f) for f in filter["$and"])
+    [(field, cond)] = filter.items()
+    return metadata.get(field) == cond["$eq"]
+
+
 class FakeSearch:
-    """S3 Vectors query_vectors: returns its canned hits, best first, and records the last call."""
+    """S3 Vectors query_vectors: returns its canned hits that pass the filter, best first, and records each call."""
 
     def __init__(self, hits: list[dict]) -> None:
         self.hits = hits
+        self.filters: list[dict | None] = []
         self.last_top_k: int | None = None
         self.last_filter: dict | None = None
 
     def query(self, vector: list[float], top_k: int, filter: dict | None) -> list[dict]:
         self.last_top_k, self.last_filter = top_k, filter
-        return self.hits[:top_k]
+        self.filters.append(filter)
+        return [h for h in self.hits if _matches(h["metadata"], filter)][:top_k]
 
 
 def hit(n: int, text: str, section: str = "notes", date: str = "2026-10-15", project: str = "whiteborag") -> dict:
@@ -61,4 +72,5 @@ def hit(n: int, text: str, section: str = "notes", date: str = "2026-10-15", pro
     s3_key = f"captures/wb-cam-01/{date[:4]}/{date[5:7]}/{date[8:]}/{stamp}_{capture_id}.jpg"
     metadata = {"project": project, "date": date, "section": section, "device": "wb-cam-01",
                 "capture_id": capture_id, "s3_key": s3_key, "text": text}
-    return {"key": f"{capture_id}#0", "metadata": metadata, "distance": 0.1 * n}
+    # One vector per section, so the key is unique per (capture, section) as ingest's "<capture_id>#<i>" keys are.
+    return {"key": f"{capture_id}#{section}", "metadata": metadata, "distance": 0.1 * n}

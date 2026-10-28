@@ -50,7 +50,8 @@ def _edge(e: dict) -> str:
 
 
 def _board(n: int, b: Board) -> str:
-    parts = [f"[{n}] The {nice_date(b.date)} board ({b.section}):", b.text.strip()]
+    title = f' "{b.title}"' if b.title else ""
+    parts = [f"[{n}] The {nice_date(b.date)} board{title} ({b.section}):", b.text.strip()]
     if b.todos is not None:
         lines = [
             ("☑ " if t["checked"] else "☐ ")

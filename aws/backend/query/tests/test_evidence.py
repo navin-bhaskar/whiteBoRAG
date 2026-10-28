@@ -191,10 +191,10 @@ def test_nothing_messages_take_the_project_name():
     assert set(NOTHING) == {"todos", "board_latest", "diagram_latest", "diagram_history", "search", "empty"}
 
 
-def search(hits, project=None, section=None, date_from=None, date_to=None, before=None):
+def search(hits, project=None, section=None, date_from=None, date_to=None, before=None, store=None):
     index = FakeSearch(hits)
     boards = search_boards(
-        FakeEmbedder(), index, "where are the sensors?", project,
+        store or InMemoryStore(), FakeEmbedder(), index, "where are the sensors?", project,
         Intent("search", None, section, date_from, date_to, before, False),
     )
     return boards, index
@@ -202,15 +202,47 @@ def search(hits, project=None, section=None, date_from=None, date_to=None, befor
 
 def test_filter_for_project_and_section():
     _, index = search([], project=P, section="diagram")
-    assert index.last_filter == {"$and": [{"project": {"$eq": P}}, {"section": {"$eq": "diagram"}}]}
+    assert index.filters[0] == {"$and": [{"project": {"$eq": P}}, {"section": {"$eq": "diagram"}}]}
     assert index.last_top_k == 8
 
 
 def test_single_condition_has_no_and():
     _, index = search([], project=P)
-    assert index.last_filter == {"project": {"$eq": P}}
+    assert index.filters == [{"project": {"$eq": P}}]
     _, index = search([], section="todos")
-    assert index.last_filter == {"section": {"$eq": "todos"}}
+    assert index.filters[0] == {"section": {"$eq": "todos"}}
+
+
+def test_section_boards_first_then_any_section():
+    # The question parser guessed "notes", but the board that answers it is a diagram.
+    hits = [hit(1, "video uploaded → whisper", section="diagram"), hit(2, "notes a"), hit(3, "notes b")]
+    boards, index = search(hits, project=P, section="notes")
+    assert index.filters == [
+        {"$and": [{"project": {"$eq": P}}, {"section": {"$eq": "notes"}}]},
+        {"project": {"$eq": P}},
+    ]
+    assert [b.capture_id[-4:] for b in boards] == ["0002", "0003", "0001"]
+    assert [b.text for b in boards] == ["notes a", "notes b", "video uploaded → whisper"]
+
+
+def test_section_top_up_respects_the_cap():
+    hits = [hit(n, f"notes {n}") for n in range(1, 6)] + [hit(6, "diagram", section="diagram")]
+    boards, _ = search(hits, section="notes")
+    assert [b.capture_id[-4:] for b in boards] == ["0001", "0002", "0003", "0004", "0005"]
+
+
+def test_search_boards_carry_their_titles():
+    s = Seeded()
+    s.add("20261015T084632Z", board(title="whiteBORAG local: goals"))
+    boards, _ = search([hit(0, "use qdrant"), hit(9, "no record")], store=s.store)
+    assert [b.title for b in boards] == ["whiteBORAG local: goals", None]
+
+
+def test_store_boards_carry_their_titles():
+    s = Seeded()
+    s.add("20261015T084632Z", board(title="whiteBORAG goals", todos=["[ ] Use qdrant"]))
+    [b] = todo_boards(s.store, s.blobs, P, PLAIN)
+    assert b.title == "whiteBORAG goals"
 
 
 def test_no_filter_when_unknown():
@@ -249,5 +281,5 @@ def test_untitled_board_has_no_project():
 
 def test_embeds_the_question():
     embedder, index = FakeEmbedder(), FakeSearch([])
-    search_boards(embedder, index, "where are the sensors?", None, PLAIN)
+    search_boards(InMemoryStore(), embedder, index, "where are the sensors?", None, PLAIN)
     assert embedder.texts == ["where are the sensors?"]

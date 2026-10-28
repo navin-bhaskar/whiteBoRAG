@@ -48,7 +48,7 @@ def _today() -> str:
 
 def _gather(deps: Deps, question: str, intent: understand.Intent, project: str | None) -> list[Board]:
     if intent.intent == "search":
-        return evidence.search_boards(deps.embedder, deps.search, question, project, intent)
+        return evidence.search_boards(deps.store, deps.embedder, deps.search, question, project, intent)
     if project is None:
         return []
     find = {

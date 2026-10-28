@@ -28,6 +28,14 @@ def test_boards_numbered_with_dates():
     assert "what's left?" in p
 
 
+def test_board_title_shown_when_known():
+    titled = Board("01N", "2026-10-19T08:46:32Z", "2026-10-19", "k", "whiteborag", "notes", "use qdrant",
+                   title="whiteBORAG local: goals")
+    p = build_prompt("q", TODOS, WB, "named", [], [todo_board(), titled])
+    assert '[1] The 15 Oct 2026 board (todos):' in p
+    assert '[2] The 19 Oct 2026 board "whiteBORAG local: goals" (notes):' in p
+
+
 def test_todos_rendered_with_boxes_and_done_since():
     p = build_prompt("q", TODOS, WB, "named", [], [todo_board()])
     assert "☐ Test terraform code (done since, on 19 Oct 2026)" in p

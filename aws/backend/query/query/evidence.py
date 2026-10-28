@@ -46,6 +46,7 @@ class Board:
     text: str
     todos: list[dict] | None = None
     diff: dict | None = None
+    title: str | None = None  # The board's title as read; it names what the board is ("goals") when its text doesn't.
 
 
 def board_text(blobs: Blobs, rec: CaptureRecord) -> str | None:
@@ -105,7 +106,8 @@ def _records(store: Store, blobs: Blobs, project: str, intent: Intent, wanted: C
 
 
 def _board(rec: CaptureRecord, section: str, text: str, **parts) -> Board:
-    return Board(rec.capture_id, rec.captured_at, rec.date, rec.s3_key, rec.project, section, text, **parts)
+    return Board(rec.capture_id, rec.captured_at, rec.date, rec.s3_key, rec.project, section, text, **parts,
+                 title=rec.title_as_seen)
 
 
 def _todos_as_on(store: Store, project: str, rec: CaptureRecord) -> list[dict]:
@@ -173,17 +175,27 @@ def _search_filter(project: str | None, section: str | None) -> dict | None:
     return conditions[0] if conditions else None
 
 
-def search_boards(embedder: Embedder, index: VectorSearch, question: str, project: str | None, intent: Intent) -> list[Board]:
-    """The boards whose sections best match the question, in rank order, each with its matched texts."""
+def search_boards(
+    store: Store, embedder: Embedder, index: VectorSearch, question: str, project: str | None, intent: Intent
+) -> list[Board]:
+    """The boards whose sections best match the question, in rank order, each with its matched texts and title.
+
+    With a section, that section's boards come first and boards matched in any section fill the rest: the section
+    is the question parser's guess, and a wrong guess must not hide the board that answers the question.
+    """
     dated = bool(intent.date_from or intent.date_to or intent.before)
     before = _instant(intent.before) if intent.before else None
-    hits = index.query(
-        embedder.embed(question),
-        SEARCH_TOP_K_FILTERED if dated else SEARCH_TOP_K,
-        _search_filter(project, intent.section),
-    )
+    vector = embedder.embed(question)
+    top_k = SEARCH_TOP_K_FILTERED if dated else SEARCH_TOP_K
+    hits = index.query(vector, top_k, _search_filter(project, intent.section))
+    if intent.section:
+        hits += index.query(vector, top_k, _search_filter(project, None))
     grouped: dict[str, tuple[dict, list[str]]] = {}
+    seen: set[str] = set()
     for h in hits:
+        if h["key"] in seen:  # The same section, matched by both searches.
+            continue
+        seen.add(h["key"])
         meta = h["metadata"]
         capture = parse_key(meta["s3_key"])
         if capture is None or not (
@@ -206,6 +218,7 @@ def search_boards(embedder: Embedder, index: VectorSearch, question: str, projec
             project=None if meta["project"] == NO_PROJECT else meta["project"],
             section=meta["section"],
             text="\n\n".join(texts),
+            title=rec.title_as_seen if (rec := store.get_capture(meta["capture_id"])) else None,
         )
         for meta, texts in grouped.values()
     ]

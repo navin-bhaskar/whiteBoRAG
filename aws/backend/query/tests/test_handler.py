@@ -182,7 +182,7 @@ def test_search_end_to_end():
     assert out["answer"] == "Found it." and out["project"] is None
     [source] = out["sources"]
     assert (source["project"], source["section"]) == (None, "notes")
-    assert search.last_filter == {"section": {"$eq": "notes"}}
+    assert search.filters[0] == {"section": {"$eq": "notes"}}
 
 
 def test_search_finds_nothing():
