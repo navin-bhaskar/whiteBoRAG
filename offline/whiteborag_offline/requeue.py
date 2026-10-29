@@ -30,6 +30,10 @@ def main(argv: list[str] | None = None, db_path: Path | None = None) -> int:
         print(f"not capture keys: {', '.join(bad)}", file=sys.stderr)
         return 2
 
+    if args.config and not args.config.exists():
+        print(f"no config at {args.config}", file=sys.stderr)  # don't fall back to offline's queue
+        return 2
+
     cfg = load_config(args.config) if args.config else load_config()
     if db_path is None:
         cfg.data_dir.mkdir(parents=True, exist_ok=True)  # as the server does on start

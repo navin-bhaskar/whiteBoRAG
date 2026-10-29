@@ -24,3 +24,9 @@ def test_config_option_targets_its_db(tmp_path):
     (tmp_path / "c.toml").write_text(text, encoding="utf-8")
     assert main(["--config", str(tmp_path / "c.toml"), KEY]) == 0
     assert [j["s3_key"] for j in JobQueue(tmp_path / "d" / "whiteborag.db").recent()] == [KEY]
+
+
+def test_missing_config_is_refused(tmp_path, capsys):
+    assert main(["--config", str(tmp_path / "nope.toml"), "--failed"]) == 2
+    assert "nope.toml" in capsys.readouterr().err
+    assert not (tmp_path / "data").exists()
