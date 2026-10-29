@@ -76,6 +76,20 @@ uv run python -m whiteborag_offline.eval.bakeoff --candidates ../openrouter/eval
 
 then, from `openrouter/`, `uv run python -m whiteborag_openrouter.eval.project_check --run eval/runs/<name>`.
 
+## End-to-end check (2026-10-28)
+
+- **The offline photos, read again:** the 5 photos from `offline/data/uploads/` were requeued on fresh data, and all 5 were ingested. 4 of the 5 got a project, against 1 of 5 offline: WhiteBoRAG ×2, RAG revision and whiteBORAG local. The fifth, the video board, has no title, so it has no project.
+- **Chat:** three questions, about the vector store, the video upload and the goals board. The first run missed two: the video board wasn't found, and the goals board was cited while the answer said there was none. Both misses were in the query code shared with AWS, and both are fixed (commit `2ffd595`): the answer model now sees each board's title, and the section search also tops up from all sections. After the fix, all three answers cite the right boards.
+- **A live capture:** the camera, on the mDNS firmware, found the laptop by its `.local` name and uploaded a new board, "WhiteBoRAG local : ingest arch". It was ingested in 14 s into the existing whiteBORAG local project, and its transcript matched the board, all 6 boxes and 8 links.
+
+## Known limits
+
+- **AWS doesn't have the chat fix yet.** Commit `2ffd595` changed `aws/backend/query`, but the AWS query Lambda hasn't been redeployed, so the AWS chat still has both misses.
+- **No internet, no ingest.** Every model call goes to OpenRouter. While it's unreachable, jobs fail and stay failed until you requeue them (see Running).
+- **A board without a title gets no project.** It is still transcribed and searchable.
+- **A project keeps the spelling it was first seen with.** Its display name comes from the first board's spelling ("whiteBORAG local"), even when a later board writes "WhiteBoRAG local".
+- **One server at a time:** the offline and OpenRouter servers both use port 8080.
+
 ## Tests
 
 ```
