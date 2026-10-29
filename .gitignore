@@ -50,6 +50,7 @@ offline/config.toml
 # OpenRouter version: runtime data, eval output, local config
 openrouter/data/
 openrouter/eval/runs/
+openrouter/eval/ocr-cache/
 openrouter/config.toml
 
 # API keys (e.g. OPENROUTER_API_KEY)

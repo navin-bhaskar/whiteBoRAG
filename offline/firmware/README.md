@@ -21,11 +21,11 @@ To check the wiring, send `touchscan` over serial. It samples the pad for 5 s. U
 
 ## Setup
 
-1. Start the offline server (see [`offline/README.md`](../README.md)) and note your laptop's name (`hostname`).
+1. Start the offline server (see [`offline/README.md`](../README.md)) or the [OpenRouter](../../openrouter/README.md) one and note your laptop's name (`hostname`).
 2. Copy `whiteborag_cam/secrets.example.h` to `whiteborag_cam/secrets.h` (git-ignored) and fill in:
    - `WIFI_SSID` and `WIFI_PASSWORD`
    - `SERVER_URL`, the laptop's name plus `.local`, e.g. `http://my-laptop.local:8080`, with no trailing slash. The camera looks the name up over mDNS before its first upload and again whenever an upload fails, so the laptop's IP can change without a reflash. An IP address (`http://192.168.1.50:8080`) works too, but then a new IP needs a reflash.
-   - `DEVICE_KEY`, which must be one of the keys under `[devices]` in `offline/config.toml`
+   - `DEVICE_KEY`, which must be one of the keys under `[devices]` in the running server's config: `offline/config.toml` or `openrouter/config.toml`
 3. Allow inbound connections on the server port in Windows Firewall, or the camera can't reach the laptop.
 
 ## Build and flash

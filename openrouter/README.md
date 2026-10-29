@@ -68,7 +68,7 @@ To start over, stop the server and delete `data/`.
 
 Six vision models read the 13 AWS eval photos, and each one's project pick was checked; full results are in [`eval/RESULTS.md`](eval/RESULTS.md). Claude Sonnet 5.5 read best (word F1 0.982 against AWS Nova 2 Lite's 0.847). Claude Haiku 5.5 picks projects nearly as well as Sonnet at a tenth of the price, and like Sonnet it turns the misread "WhileBORAG local: goals" into "WhiteBoRAG local". Together they cost about 0.9 ¢ per photo.
 
-To rerun it, from `offline/` (it costs about $0.35):
+To rerun it, from `offline/` (all six models plus the project check cost about $0.35; the two below cost less):
 
 ```
 uv run python -m whiteborag_offline.eval.bakeoff --candidates ../openrouter/eval/candidates.toml run --run ../openrouter/eval/runs/<name> --engines local:nova-2-lite,local:claude-sonnet-5.5
