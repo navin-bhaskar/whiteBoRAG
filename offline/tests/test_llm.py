@@ -120,6 +120,21 @@ def test_error_message_never_contains_key():
     assert "k-123" not in str(info.value)
 
 
+def test_key_straddling_the_cut_is_still_hidden():
+    body = "x" * 297 + "k-123"  # the key starts inside the first 300 characters
+    client = _keyed(lambda request: httpx.Response(500, text=body), key="k-123")
+    client.retry_delays_s = ()
+    with pytest.raises(LlmError) as info:
+        client.chat("m", "hi")
+    assert "k-1" not in str(info.value)
+
+
+def test_a_reply_without_choices_hides_the_key():
+    client = _keyed(lambda request: httpx.Response(200, json={"error": "k-123"}))
+    with pytest.raises(LlmError) as info:
+        client.chat("m", "hi")
+    assert "k-123" not in str(info.value)
+
 def test_cost_read_from_usage():
     body = {"choices": [{"message": {"content": "ok"}, "finish_reason": "stop"}], "usage": {"cost": 0.00042}}
     assert _keyed(lambda request: httpx.Response(200, json=body)).chat("m", "hi").cost_usd == 0.00042

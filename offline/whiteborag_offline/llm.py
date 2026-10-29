@@ -48,7 +48,7 @@ class LlmClient:
                 break
             time.sleep(delay)
         if resp.status_code != 200:
-            raise LlmError(self._redact(f"{path}: HTTP {resp.status_code} {resp.text[:300]}"))
+            raise LlmError(f"{path}: HTTP {resp.status_code} {self._redact(resp.text)[:300]}")
         return resp.json()
 
     def chat(self, model: str, prompt: str, image: bytes | None = None, max_tokens: int = 1500) -> Completion:
@@ -67,7 +67,7 @@ class LlmClient:
         try:
             choice = data["choices"][0]
         except (KeyError, IndexError) as exc:
-            raise LlmError(f"no choices in response: {str(data)[:300]}") from exc
+            raise LlmError(f"no choices in response: {self._redact(str(data))[:300]}") from exc
         text = (choice.get("message") or {}).get("content") or None
         cost = float((data.get("usage") or {}).get("cost") or 0.0)
         return Completion(text, choice.get("finish_reason") == "length", latency, cost)
@@ -77,7 +77,7 @@ class LlmClient:
         try:
             return data["data"][0]["embedding"]
         except (KeyError, IndexError) as exc:
-            raise LlmError(f"no embedding in response: {str(data)[:300]}") from exc
+            raise LlmError(f"no embedding in response: {self._redact(str(data))[:300]}") from exc
 
     def models(self, path: str = "models") -> list[str]:
         """Model ids from a catalogue; OpenRouter lists embedding models apart, at embeddings/models."""
