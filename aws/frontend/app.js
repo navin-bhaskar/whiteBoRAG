@@ -97,7 +97,7 @@ function renderClarify(question, clarify, slot) {
 function renderAnswer(data) {
   const box = el("div", "answer");
   if (data.project) {
-    const how = { previous: "from earlier", latest: "most recent" }[data.project.how];
+    const how = { previous: "same project", latest: "most recent" }[data.project.how];
     const chip = el("span", "chip", data.project.display_name);
     if (how) chip.append(el("span", "how", ` · ${how}`));
     box.append(chip);
